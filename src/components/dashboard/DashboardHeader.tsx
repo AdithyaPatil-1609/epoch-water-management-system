@@ -14,7 +14,7 @@ export function DashboardHeader({ criticalCount, totalZones, deficitCount }: Das
         <div className="flex items-center gap-6">
           <h1 className="text-xl font-medium tracking-tight text-slate-900 flex items-center gap-2">
             <Drop weight="fill" className="text-emerald-600" />
-            UrbanTwin Water
+            UrbanFlow
           </h1>
           
           <div className="hidden md:flex items-center gap-4 border-l border-slate-200 pl-6">
