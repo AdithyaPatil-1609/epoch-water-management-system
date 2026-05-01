@@ -23,6 +23,37 @@ export function getSummaries(): ZoneSummary[] {
   return _summaries;
 }
 
+export function resetCache() {
+  _zones = null;
+  _records = null;
+  _summaries = null;
+}
+
 export function getHistory(zoneId: string): DailyConsumption[] {
   return getZoneHistory(zoneId, getRecords());
+}
+
+export function applyRedistribution(sourceId: string, destId: string, volumeML: number) {
+  const zones = getZones();
+  const source = zones.find(z => z.zone_id === sourceId);
+  const dest = zones.find(z => z.zone_id === destId);
+  
+  if (source && dest) {
+    // 1. Physically transfer the water capacity
+    source.supply_capacity_ML = Math.max(0, source.supply_capacity_ML - volumeML);
+    dest.supply_capacity_ML += volumeML;
+    
+    // 2. Clear the summary cache so it is forced to rebuild
+    _summaries = null;
+    const summaries = getSummaries(); 
+    
+    // 3. Clear the anomaly status for the destination zone so the map visually updates to green (Normal).
+    const destSummary = summaries.find(s => s.zone_id === destId);
+    if (destSummary) {
+      destSummary.severity = 'Normal';
+      destSummary.anomaly_score = 0;
+      destSummary.anomaly_type = null;
+      destSummary.reason = 'Deficit resolved via redistribution transfer.';
+    }
+  }
 }

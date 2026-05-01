@@ -1,9 +1,8 @@
 'use client';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X } from '@phosphor-icons/react/dist/ssr';
+import { X, Warning, CheckCircle, MagnifyingGlass } from '@phosphor-icons/react/dist/ssr';
 import { ZoneSummary, DailyConsumption } from '@/lib/synthetic-data';
 import { Badge } from '../ui/Badge';
-import { Button } from '../ui/Button';
 import { ConsumptionChart } from '../charts/ConsumptionChart';
 import { useState, useEffect } from 'react';
 
@@ -12,6 +11,13 @@ interface AnomalyDetailPanelProps {
   onClose: () => void;
 }
 
+const SEVERITY_BG: Record<string, string> = {
+  Critical:   'bg-red-50 border-red-200',
+  Probable:   'bg-orange-50 border-orange-200',
+  Suspicious: 'bg-yellow-50 border-yellow-200',
+  Normal:     'bg-emerald-50 border-emerald-200',
+};
+
 export function AnomalyDetailPanel({ zoneId, onClose }: AnomalyDetailPanelProps) {
   const [zone, setZone] = useState<ZoneSummary | null>(null);
   const [history, setHistory] = useState<DailyConsumption[]>([]);
@@ -19,40 +25,35 @@ export function AnomalyDetailPanel({ zoneId, onClose }: AnomalyDetailPanelProps)
   const [actionLogged, setActionLogged] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!zoneId) return;
-    
+    if (!zoneId) { setZone(null); return; }
+
     setLoading(true);
     setActionLogged(null);
-    
-    // Fetch zone details and history
+
     Promise.all([
       fetch('/api/anomalies').then(r => r.json()),
-      fetch(`/api/history?zone_id=${zoneId}`).then(r => r.json())
+      fetch(`/api/history?zone_id=${zoneId}`).then(r => r.json()),
     ]).then(([anomaliesData, historyData]) => {
       const foundZone = anomaliesData.all_zones.find((z: any) => z.zone_id === zoneId);
-      setZone(foundZone);
-      if (historyData.history) {
-        setHistory(historyData.history);
-      }
+      setZone(foundZone ?? null);
+      setHistory(historyData.history ?? []);
       setLoading(false);
     });
   }, [zoneId]);
 
   const handleAction = async (action: string) => {
     if (!zoneId) return;
-    
     await fetch('/api/decisions', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        operator_id: "ramesh_op",
+        operator_id: 'ramesh_op',
         action,
-        record_type: "anomaly",
+        record_type: 'anomaly',
         record_id: zoneId,
-        comment: `Operator triggered ${action} on ${zone?.zone_name}`
-      })
+        comment: `Operator triggered ${action} on ${zone?.zone_name}`,
+      }),
     });
-    
     setActionLogged(action);
   };
 
@@ -60,92 +61,147 @@ export function AnomalyDetailPanel({ zoneId, onClose }: AnomalyDetailPanelProps)
     <AnimatePresence>
       {zoneId && (
         <>
+          {/* Dark backdrop — covers whole viewport but sits BELOW the sidebar (sidebar is z-30) */}
           <motion.div
+            key="backdrop"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             onClick={onClose}
-            className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-40 md:hidden"
+            className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] z-40"
           />
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', stiffness: 300, damping: 30 }}
-            className="fixed inset-y-0 right-0 w-full md:w-[480px] bg-white shadow-2xl border-l border-slate-200 z-50 overflow-y-auto flex flex-col"
-          >
-            {loading || !zone ? (
-              <div className="p-8 text-center text-slate-500">Loading details...</div>
-            ) : (
-              <>
-                <div className="p-6 border-b border-slate-100 flex items-start justify-between bg-slate-50/50">
-                  <div>
-                    <h2 className="text-2xl font-medium tracking-tight text-slate-900">{zone.zone_name}</h2>
-                    <p className="text-sm font-mono text-slate-500 mt-1">{zone.zone_id}</p>
-                  </div>
-                  <button onClick={onClose} className="p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition-colors">
-                    <X size={20} />
-                  </button>
-                </div>
 
-                <div className="p-6 flex-1 flex flex-col gap-8">
-                  {/* Status Section */}
-                  <div>
-                    <div className="flex items-center gap-3 mb-4">
+          {/* Modal — centered in viewport below the top bars (~160px) */}
+          <motion.div
+            key="panel"
+            initial={{ opacity: 0, scale: 0.95, y: 16 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 16 }}
+            transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            className="fixed z-50 left-0 right-0 flex justify-center pointer-events-none"
+            style={{ top: '168px', bottom: '16px' }}
+          >
+            <div
+              className="pointer-events-auto w-full max-w-xl mx-4 bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col"
+              style={{ maxHeight: '88vh' }}
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className={`px-6 py-4 border-b flex items-start justify-between ${zone ? SEVERITY_BG[zone.severity] ?? 'bg-slate-50 border-slate-200' : 'bg-slate-50 border-slate-200'}`}>
+                <div>
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-0.5">
+                    {loading ? '…' : zone?.zone_id}
+                  </p>
+                  <h2 className="text-xl font-semibold text-slate-900">
+                    {loading ? 'Loading…' : zone?.zone_name ?? 'Zone not found'}
+                  </h2>
+                </div>
+                <button
+                  onClick={onClose}
+                  className="p-1.5 rounded-full hover:bg-slate-200/70 text-slate-500 hover:text-slate-800 transition-colors"
+                >
+                  <X size={18} />
+                </button>
+              </div>
+
+              {/* Body — scrollable */}
+              <div className="overflow-y-auto flex-1">
+                {loading || !zone ? (
+                  <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
+                    Loading zone data…
+                  </div>
+                ) : (
+                  <div className="p-6 flex flex-col gap-6">
+                    {/* Status row */}
+                    <div className="flex items-start gap-4">
                       <Badge severity={zone.severity} />
-                      <span className="text-sm text-slate-500 font-medium">Score: {zone.anomaly_score.toFixed(2)}</span>
+                      <div className="flex-1">
+                        <p className="text-sm text-slate-400 mb-1">
+                          Anomaly score: <span className="font-mono font-semibold text-slate-700">{zone.anomaly_score.toFixed(2)}</span>
+                        </p>
+                        <p className="text-sm text-slate-800 leading-relaxed">{zone.reason}</p>
+                      </div>
                     </div>
-                    <p className="text-lg text-slate-800 leading-snug">{zone.reason}</p>
-                    
+
+                    {/* Factor tags */}
                     {zone.factors.length > 0 && (
-                      <div className="flex flex-wrap gap-2 mt-4">
+                      <div className="flex flex-wrap gap-2">
                         {zone.factors.map(f => (
-                          <span key={f} className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-medium rounded-md uppercase tracking-wider">
+                          <span
+                            key={f}
+                            className="px-2.5 py-1 bg-slate-100 text-slate-600 text-xs font-semibold rounded-full uppercase tracking-wider"
+                          >
                             {f}
                           </span>
                         ))}
                       </div>
                     )}
-                  </div>
 
-                  {/* Metrics */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <div className="text-xs uppercase tracking-widest text-slate-500 mb-1">Consumption</div>
-                      <div className="text-2xl font-mono text-slate-900">{zone.current_consumption_ML} <span className="text-sm font-sans text-slate-500">ML/d</span></div>
+                    {/* Key metrics */}
+                    <div className="grid grid-cols-3 gap-3">
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Consumption</p>
+                        <p className="text-2xl font-mono font-bold text-slate-900">
+                          {zone.current_consumption_ML}
+                          <span className="text-xs font-sans text-slate-400 ml-1">ML/d</span>
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Pressure</p>
+                        <p className="text-2xl font-mono font-bold text-slate-900">
+                          {zone.pressure_bar.toFixed(1)}
+                          <span className="text-xs font-sans text-slate-400 ml-1">bar</span>
+                        </p>
+                      </div>
+                      <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                        <p className="text-[10px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Supplied</p>
+                        <p className={`text-2xl font-mono font-bold ${zone.fulfillment_pct >= 80 ? 'text-emerald-700' : 'text-red-600'}`}>
+                          {zone.fulfillment_pct}
+                          <span className="text-xs font-sans text-slate-400 ml-0.5">%</span>
+                        </p>
+                      </div>
                     </div>
-                    <div className="p-4 rounded-xl border border-slate-100 bg-slate-50/50">
-                      <div className="text-xs uppercase tracking-widest text-slate-500 mb-1">Pressure</div>
-                      <div className="text-2xl font-mono text-slate-900">{zone.pressure_bar.toFixed(1)} <span className="text-sm font-sans text-slate-500">bar</span></div>
+
+                    {/* 30-day chart */}
+                    <div>
+                      <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">30-Day Consumption History</h3>
+                      <div className="h-48">
+                        <ConsumptionChart data={history} />
+                      </div>
                     </div>
                   </div>
+                )}
+              </div>
 
-                  {/* Chart */}
-                  <div className="h-64 mt-2">
-                    <h3 className="text-sm font-medium text-slate-700 mb-4">30-Day History</h3>
-                    <ConsumptionChart data={history} />
-                  </div>
-                </div>
-
-                {/* Action Bar */}
-                <div className="p-6 border-t border-slate-100 bg-white">
+              {/* Action bar */}
+              {!loading && zone && (
+                <div className="px-6 py-4 border-t border-slate-100 bg-white flex gap-3">
                   {actionLogged ? (
-                    <div className="w-full py-3 px-4 bg-emerald-50 text-emerald-800 rounded-lg flex items-center gap-2 font-medium">
-                      ✓ Action logged: {actionLogged}
+                    <div className="flex-1 flex items-center gap-2 py-2.5 px-4 bg-emerald-50 text-emerald-800 rounded-xl text-sm font-medium border border-emerald-100">
+                      <CheckCircle size={16} weight="fill" />
+                      Action logged: <strong>{actionLogged}</strong>
                     </div>
                   ) : (
-                    <div className="flex gap-3">
-                      <Button className="flex-1" onClick={() => handleAction('Investigate')}>
+                    <>
+                      <button
+                        onClick={() => handleAction('Investigate')}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                      >
+                        <MagnifyingGlass size={15} />
                         Investigate
-                      </Button>
-                      <Button variant="outline" className="flex-1" onClick={() => handleAction('Acknowledge')}>
+                      </button>
+                      <button
+                        onClick={() => handleAction('Acknowledge')}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 px-4 border border-slate-200 hover:bg-slate-50 text-slate-700 text-sm font-semibold rounded-xl transition-colors"
+                      >
+                        <Warning size={15} />
                         Acknowledge
-                      </Button>
-                    </div>
+                      </button>
+                    </>
                   )}
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </motion.div>
         </>
       )}

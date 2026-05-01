@@ -25,10 +25,10 @@ export interface EnrichedProposal extends RedistributionProposal {
 
 interface ProposalQueueProps {
   proposals: EnrichedProposal[];
-  onApprove?: (id: string) => void;
+  onApprove?: (prop: EnrichedProposal) => void;
 }
 
-function ProposalCard({ prop, onApprove }: { prop: EnrichedProposal; onApprove?: (id: string) => void }) {
+function ProposalCard({ prop, onApprove }: { prop: EnrichedProposal; onApprove?: (prop: EnrichedProposal) => void }) {
   const [expanded, setExpanded] = useState(false);
 
   return (
@@ -71,7 +71,7 @@ function ProposalCard({ prop, onApprove }: { prop: EnrichedProposal; onApprove?:
 
         <div className="flex gap-2 relative z-10">
           {onApprove && (
-            <Button size="sm" onClick={() => onApprove(prop.proposal_id)} className="flex-1">
+            <Button size="sm" onClick={() => onApprove(prop)} className="flex-1">
               Approve
             </Button>
           )}
