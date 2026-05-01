@@ -75,7 +75,7 @@ export function generateZones(): Zone[] {
   };
 
   const supplies: Record<string, number> = {
-    "Zone-A": 350, "Zone-B": 300, "Zone-C": 240, "Zone-D": 140,
+    "Zone-A": 350, "Zone-B": 300, "Zone-C": 160, "Zone-D": 140,
     "Zone-E": 280, "Zone-F": 220, "Zone-G": 130, "Zone-H": 370,
     "Zone-I": 210, "Zone-J": 260, "Zone-K": 340, "Zone-L": 190,
     "Zone-M": 270, "Zone-N": 230, "Zone-O": 200, "Zone-P": 320,
@@ -141,101 +141,121 @@ function seededRandom(seed: number): () => number {
   };
 }
 
-// ─── Time-Series Generator ──────────────────────────────────
+// ─── Time-Series Generator (generateData pattern) ─────────────
+//
+// Structure mirrors the user's generateData() function:
+//   for day in 1..30
+//     for zone in zones
+//       for time in ['morning','afternoon','evening','night']
+//         base = zoneBaseline / 4  +  noise
+//         anomaly injection (additive / multiplicative, day-keyed)
+//         push record
 
 export function generateTimeSeries(zones: Zone[], days = 30): ZoneRecord[] {
   const records: ZoneRecord[] = [];
   const rng = seededRandom(42);
   const startDate = new Date("2026-04-01T00:00:00Z");
 
-  for (const zone of zones) {
-    for (let day = 0; day < days; day++) {
-      // 4 readings per day (every 6 hours)
-      for (let reading = 0; reading < 4; reading++) {
-        const hour = reading * 6; // 0, 6, 12, 18
+  // Explicit time-of-day labels → hours (matches user's pattern)
+  const times = ['morning', 'afternoon', 'evening', 'night'] as const;
+  const hourMap: Record<typeof times[number], number> = {
+    morning: 6, afternoon: 12, evening: 18, night: 0,
+  };
+  // Demand multiplier per time-of-day
+  const demandMult: Record<typeof times[number], number> = {
+    morning:   0.9,
+    afternoon: 1.15,
+    evening:   1.05,
+    night:     0.7,
+  };
+
+  for (let day = 1; day <= days; day++) {
+    for (const zone of zones) {
+      for (const time of times) {
+        const hour = hourMap[time];
+
         const timestamp = new Date(startDate);
-        timestamp.setDate(startDate.getDate() + day);
+        timestamp.setDate(startDate.getDate() + day - 1);
         timestamp.setHours(hour, 0, 0, 0);
 
-        const dayOfWeek = timestamp.getDay();
-        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+        // ── Base consumption (user's pattern: fixed baseline + noise) ──
+        // base = zone daily baseline / 4 readings, with ±10% noise
+        let base = (zone.baseline_demand_ML / 4) * demandMult[time];
+        base *= 1 + (rng() - 0.5) * 0.1;                // ±5% random noise
+        base *= 1 + ((day - 1) / days) * 0.05;           // +5% seasonal drift
 
-        // Base consumption with realistic patterns
-        let consumption = zone.baseline_demand_ML / 4; // Per reading
-        let pressure = 2.5 + rng() * 0.5; // 2.5–3.0 bar normal
+        let pressure = 2.4 + rng() * 0.6;                // 2.4–3.0 bar normal
         let anomalyType: string | null = null;
 
-        // Time-of-day patterns
-        if (hour === 0) consumption *= 0.7;       // Night: -30%
-        else if (hour === 6) consumption *= 0.9;   // Early morning
-        else if (hour === 12) consumption *= 1.15;  // Peak day: +15%
-        else if (hour === 18) consumption *= 1.05;  // Evening
+        // ── Planted Anomalies (additive / multiplicative, user's style) ──
 
-        // Weekend adjustment
-        if (isWeekend) consumption *= 1.2;
-
-        // Seasonal trend (slight increase over month)
-        consumption *= 1 + (day / days) * 0.05;
-
-        // Normal noise
-        consumption *= 1 + (rng() - 0.5) * 0.1;
-
-        // ── Planted Anomalies ───────────────────────────
-
-        // 1. Gradual Leak (Zone-D): Day 10–17
+        // 1. LEAK — Zone-D, days 10–17 (progressive ramp, +20 units/day)
+        //    Mirrors: if (zone === "D" && day >= 10) base += (day - 9) * 20
         if (zone.zone_id === "Zone-D" && day >= 10 && day <= 17) {
-          const rampFactor = 1 + 0.4 * (day - 10); // 1.0 → 3.8
-          consumption *= rampFactor;
-          pressure -= 0.08 * (day - 10);
+          base += (day - 9) * (zone.baseline_demand_ML / 4) * 0.15; // +15% per day
+          pressure -= 0.06 * (day - 9);
           anomalyType = "leak";
         }
 
-        // 2. Nighttime Theft (Zone-G): 11PM–3AM, Days 5–25
-        if (zone.zone_id === "Zone-G" && day >= 5 && day <= 25 && hour === 0) {
-          consumption *= 4.0;
+        // 2. THEFT — Zone-G, days 5–25, night only (hidden spike at midnight)
+        //    Mirrors: if (zone === "G" && time === "night") base += bigSpike
+        if (zone.zone_id === "Zone-G" && day >= 5 && day <= 25 && time === "night") {
+          base += zone.baseline_demand_ML / 4 * 3.0; // 4x total at night
           anomalyType = "theft";
         }
 
-        // 3. Meter Fault (Zone-K): Days 12–19
+        // 3. METER FAULT — Zone-K, days 12–19 (erratic ±75% random)
+        //    Mirrors: if (zone === "K") base *= (1 + random * 1.5)
         if (zone.zone_id === "Zone-K" && day >= 12 && day <= 19) {
-          consumption *= 1 + (rng() - 0.5) * 1.5; // ±75%
+          base *= 1 + (rng() - 0.5) * 1.5;
           anomalyType = "meter_fault";
         }
 
-        // 4. Event Spike (Zone-M): Days 7–9
+        // 4. EVENT SPIKE — Zone-M, days 7–9 (stadium / festival)
+        //    Mirrors: if (zone === "M" && day >= 7) base += large_amount
         if (zone.zone_id === "Zone-M" && day >= 7 && day <= 9) {
-          consumption *= 2.8;
+          base += zone.baseline_demand_ML / 4 * 1.8; // +180% additive
           anomalyType = "event";
         }
 
-        // 5. Multi-Zone Failure (Zone-P + Zone-Q): Day 22, first reading only
-        if ((zone.zone_id === "Zone-P" || zone.zone_id === "Zone-Q") && day === 22 && hour === 0) {
-          consumption *= 0.4; // -60%
-          pressure = 1.2;
-          anomalyType = "pipe_rupture";
-        }
-        if ((zone.zone_id === "Zone-P" || zone.zone_id === "Zone-Q") && day === 22 && hour === 6) {
-          consumption *= 0.7; // Recovering
-          pressure = 1.6;
+        // 5. PIPE RUPTURE — Zone-P & Zone-Q, day 22 (sudden drop then recovery)
+        //    Mirrors: if (zone in ["P","Q"] && day === 22) base *= 0.4
+        if ((zone.zone_id === "Zone-P" || zone.zone_id === "Zone-Q") && day === 22) {
+          if (time === "night") {
+            base *= 0.4;   // -60% sudden drop
+            pressure = 1.2;
+          } else if (time === "morning") {
+            base *= 0.7;   // recovering
+            pressure = 1.6;
+          }
           anomalyType = "pipe_rupture";
         }
 
+        // 6. INDUSTRIAL MISUSE — Zone-C, days 28–30 (massive sustained drain)
+        //    Mirrors: if (zone === "C" && day >= 28) base *= 3.5
+        if (zone.zone_id === "Zone-C" && day >= 28 && day <= 30) {
+          base *= 3.5;
+          pressure -= 0.15;
+          anomalyType = "industrial_misuse";
+        }
+
         records.push({
-          zone_id: zone.zone_id,
-          zone_name: zone.zone_name,
-          lat: zone.lat,
-          lng: zone.lng,
+          zone_id:       zone.zone_id,
+          zone_name:     zone.zone_name,
+          lat:           zone.lat,
+          lng:           zone.lng,
           timestamp,
-          consumption_ML: Math.max(0, Math.round(consumption * 100) / 100),
-          baseline_ML: zone.baseline_demand_ML / 4,
-          pressure_bar: Math.max(0.5, Math.round(pressure * 100) / 100),
-          anomaly_type: anomalyType,
+          consumption_ML: Math.max(0, Math.round(base * 100) / 100),
+          baseline_ML:    zone.baseline_demand_ML / 4,
+          pressure_bar:   Math.max(0.5, Math.round(pressure * 100) / 100),
+          anomaly_type:   anomalyType,
         });
       }
     }
   }
 
   return records;
+
 }
 
 // ─── Latest Zone Summary ─────────────────────────────────────
@@ -274,8 +294,8 @@ export function getLatestZoneSummaries(zones: Zone[], records: ZoneRecord[]): Zo
     const dailyTotal = zoneRecords.slice(-4).reduce((s, r) => s + r.consumption_ML, 0);
     const fulfillment = Math.min(zone.supply_capacity_ML / Math.max(dailyTotal, 1), 1.0);
 
-    // Check for anomalies in recent data
-    const recentAnomalies = zoneRecords.slice(-20).filter((r) => r.anomaly_type);
+    // Check for anomalies in recent data (last 28 readings = 7 days)
+    const recentAnomalies = zoneRecords.slice(-28).filter((r) => r.anomaly_type);
     const hasAnomaly = recentAnomalies.length > 0;
     const anomalyType = hasAnomaly ? recentAnomalies[recentAnomalies.length - 1].anomaly_type : null;
 
@@ -321,6 +341,12 @@ export function getLatestZoneSummaries(zones: Zone[], records: ZoneRecord[]): Zo
           severity = "Critical";
           reason = `Simultaneous supply drop (-60%) — suspected pipe rupture`;
           factors = ["Multi-Zone", "Sudden Drop", "Pressure Loss"];
+          break;
+        case "industrial_misuse":
+          anomalyScore = 0.85;
+          severity = "Critical";
+          reason = `Sustained extreme consumption (${ratio.toFixed(1)}x normal) — suspected industrial misuse`;
+          factors = ["High Volume", "Continuous Drain", "Policy Violation"];
           break;
         default:
           if (zscore > 3) {

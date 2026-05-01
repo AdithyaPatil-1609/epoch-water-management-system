@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDecisions, addDecision } from "@/lib/decisions";
+import { applyRedistribution } from "@/lib/data-cache";
 
 export async function GET() {
   const decisions = getDecisions();
@@ -17,6 +18,12 @@ export async function POST(request: NextRequest) {
       comment: body.comment || "",
       timestamp: body.timestamp || new Date().toISOString(),
     });
+
+    if (body.action === "Approve" && body.record_type === "proposal") {
+      if (body.source_zone && body.dest_zone && body.volume_ML) {
+        applyRedistribution(body.source_zone, body.dest_zone, body.volume_ML);
+      }
+    }
 
     return NextResponse.json(
       { decision_id: decision.decision_id, status: "logged", timestamp: decision.timestamp },

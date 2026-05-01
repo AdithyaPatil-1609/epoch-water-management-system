@@ -104,10 +104,14 @@ export async function GET() {
     }
 
     // ML wins: override score, severity, reason, and factors
-    // when the ML model has enough history (detection_method === 'ml').
-    // When it fell back to rule_based, prefer the richer existing reason
-    // from synthetic-data.ts (which knows the ground-truth anomaly type).
-    const useMlResult = ml.detection_method === "ml";
+    // EXCEPTION: If the rule-based engine has explicitly planted a known
+    // anomaly type (industrial_misuse, pipe_rupture, etc.), preserve it —
+    // the ML model doesn't have enough signal to override ground-truth labels.
+    const PLANTED_TYPES = new Set([
+      "industrial_misuse", "pipe_rupture", "theft", "leak", "event", "meter_fault"
+    ]);
+    const hasPlantedAnomaly = summary.anomaly_type && PLANTED_TYPES.has(summary.anomaly_type);
+    const useMlResult = ml.detection_method === "ml" && !hasPlantedAnomaly;
 
     return {
       // ── Existing fields (always preserved for dashboard compatibility) ──
@@ -132,10 +136,11 @@ export async function GET() {
       confidence:        Math.round((0.7 + (useMlResult ? ml.anomaly_score : summary.anomaly_score) * 0.25) * 100) / 100,
       baseline_consumption_L: ml.baseline_consumption ?? null,
       consumption_ratio:      ml.consumption_ratio     ?? null,
-      detection_method:       ml.detection_method,
+      detection_method:       hasPlantedAnomaly ? "rule_based" : ml.detection_method,
       ml_anomaly_score:       ml.anomaly_score,   // Always include raw ML score for debugging
       ml_severity:            ml.severity,
     };
+
   });
 
   // ── Step 4: Filter and sort anomalies for the response ───────
@@ -166,5 +171,12 @@ export async function GET() {
     // ── Main payload ────────────────────────────────────────────
     anomalies,
     all_zones: enrichedSummaries,
+
+    // ── Network graph for pipe visualization ────────────────────
+    network_connections: getZones().map(z => ({
+      zone_id: z.zone_id,
+      connected_zones: z.connected_zones,
+      min_pressure: z.min_operating_pressure,
+    })),
   });
 }

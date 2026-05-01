@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "UrbanTwin Water Systems",
+  title: "UrbanFlow Water Systems",
   description:
     "Smart city water-systems decision-support dashboard for Indian urban utilities. Monitor anomalies, optimize fairness, and audit operator decisions.",
 };
