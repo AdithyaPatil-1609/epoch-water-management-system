@@ -72,7 +72,6 @@ export interface MLPipelineConfig {
  batchSize: number;
 }
 
-// ── Feature vector (internal, not exported to API consumers) ──
 
 export interface FeatureVector {
  rolling_mean_7d: number;

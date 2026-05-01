@@ -1,10 +1,7 @@
-// ──────────────────────────────────────────────────────────────
-// Water Redistribution Optimization Engine v2
-// Combines fairness metrics, pressure constraints, BFS pathfinding,
-// and greedy multi-objective proposal generation.
-// Adapted from user-provided reference implementation to use
-// the existing Zone / ZoneSummary types from synthetic-data.ts
-// ──────────────────────────────────────────────────────────────
+/**
+ * Water Redistribution Optimization Engine
+ * Combines fairness metrics, pressure constraints, and greedy heuristics
+ */
 
 import type { Zone, ZoneSummary } from "./synthetic-data";
 
@@ -72,7 +69,11 @@ function toEngineZone(zone: Zone, summary: ZoneSummary): EngineZone {
  };
 }
 
-// ─── Step 1: Fairness Metrics ─────────────────────────────────
+/**
+ * Step 1: Compute demand fulfillment and fairness baseline
+ */
+export function computeFairnessMetrics(zones: Zone[]): FairnessMetrics {
+  const fulfillments = zones.map(z => z.current_supply / z.demand);
 
 export function computeFairnessMetrics(zones: EngineZone[]): FairnessMetrics {
  const fulfillments = zones.map(z => Math.min(z.current_supply / z.demand, 1.5));
@@ -116,8 +117,27 @@ function classifyEngineZones(zones: EngineZone[]): { deficit: EngineZone[]; surp
  return { deficit, surplus };
 }
 
-// ─── Step 3: BFS Network Distance ────────────────────────────
+/**
+ * Step 3: Simulate pressure impact of a transfer
+ * Uses simplified hydraulic model: pressure drops ~0.01 bar per 100m of pipe
+ * For demo, we use network distance as proxy via adjacency depth
+ */
+function simulatePressureImpact(
+  source: Zone,
+  dest: Zone,
+  volume: number,
+  zones_map: Map<string, Zone>,
+  network_distance: number
+): number {
+  // Simplified: pressure loss scales with volume and distance
+  const base_loss = (volume / source.current_supply) * 0.1; // 10% loss per unit transferred
+  const distance_factor = network_distance * 0.05; // Distance multiplier
+  return -(base_loss + distance_factor);
+}
 
+/**
+ * Step 4: Find shortest network path between zones (BFS)
+ */
 function findNetworkDistance(
  sourceId: string,
  destId: string,
@@ -233,7 +253,22 @@ function rankProposals(proposals: EngineProposal[], fairnessPriority: number): E
  return proposals.sort((a, b) => b.multi_objective_score - a.multi_objective_score);
 }
 
-// ─── Step 7: Greedy Non-Conflicting Selection ─────────────────
+/**
+ * Step 7: Select non-conflicting proposals (greedy selection)
+ * Once a zone transfers/receives, don't include it in further transfers
+ */
+function selectNonConflictingProposals(
+  ranked: RedistributionProposal[],
+  max_proposals: number = 5
+): RedistributionProposal[] {
+  const selected: RedistributionProposal[] = [];
+  const used_zones = new Set<string>();
+
+  for (const proposal of ranked) {
+    // Skip if source or destination already involved
+    if (used_zones.has(proposal.source_zone) || used_zones.has(proposal.dest_zone)) {
+      continue;
+    }
 
 function selectNonConflicting(ranked: EngineProposal[], maxProposals = 5): EngineProposal[] {
  const selected: EngineProposal[] = [];
@@ -250,8 +285,9 @@ function selectNonConflicting(ranked: EngineProposal[], maxProposals = 5): Engin
  return selected;
 }
 
-// ─── Main Orchestrator ────────────────────────────────────────
-
+/**
+ * Main orchestration: Generate, rank, and select redistribution proposals
+ */
 export function generateRedistributionProposals(
  summaries: ZoneSummary[],
  zones: Zone[],

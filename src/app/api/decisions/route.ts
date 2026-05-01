@@ -1,6 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getDecisions, addDecision } from "@/lib/decisions";
-import { applyRedistribution } from "@/lib/data-cache";
+/**
+ * API: POST /api/decisions
+ * Log an operator decision on a proposal or anomaly
+ */
 
 export async function GET() {
  const decisions = getDecisions();

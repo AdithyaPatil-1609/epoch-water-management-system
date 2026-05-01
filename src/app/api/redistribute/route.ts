@@ -1,7 +1,14 @@
-import { NextRequest, NextResponse } from "next/server";
+/**
+ * API Route: /api/redistribute
+ * Combines anomaly detection with redistribution optimization
+ * Returns proposals ranked by fairness impact
+ */
+
+import { generateRedistributionProposals, Zone, RedistributionProposal, FairnessMetrics } from "@/lib/redistribution-engine";
+import { getLatestAnomalies, AnomalyContext } from "@/lib/anomaly-detector";
+import { simulatePressures } from "@/lib/network-simulator";
+import { insertProposals } from "@/lib/database";
 import { getZones, getSummaries } from "@/lib/data-cache";
-import { generateRedistributionProposals } from "@/lib/redistribution-engine";
-import { calculateProposalFairness } from "@/lib/fairness-engine";
 
 export async function GET(request: NextRequest) {
  const start = Date.now();

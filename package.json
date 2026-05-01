@@ -9,14 +9,17 @@
     "lint": "eslint",
     "test": "jest --passWithNoTests",
     "test:watch": "jest --watch",
-    "test:ml": "jest isolation-forest --passWithNoTests --verbose"
+    "test:ml": "jest isolation-forest --passWithNoTests --verbose",
+    "generate-data": "node scripts/generate_simulation.js"
   },
   "dependencies": {
+    "@clerk/nextjs": "^7.3.0",
     "@google/generative-ai": "^0.24.1",
     "@phosphor-icons/react": "^2.1.10",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "leaflet": "^1.9.4",
+    "mongodb": "^7.2.0",
     "next": "16.2.4",
     "onnxruntime-node": "^1.25.1",
     "react": "19.2.4",

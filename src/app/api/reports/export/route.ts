@@ -1,8 +1,7 @@
-import { NextResponse } from "next/server";
-import { getDecisions } from "@/lib/decisions";
-import { getSummaries, getZones } from "@/lib/data-cache";
-import { generateFairnessTrend, interpretGini, interpretationLabel } from "@/lib/fairness-engine";
-import * as XLSX from "xlsx";
+/**
+ * API: GET /api/reports/export
+ * Generate XLSX export with three sheets: Anomalies, Proposals, Decisions
+ */
 
 export async function GET() {
  try {

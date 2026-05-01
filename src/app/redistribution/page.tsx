@@ -16,7 +16,7 @@ import {
 } from '@phosphor-icons/react';
 import { GiniGauge } from '@/components/charts/GiniGauge';
 import { FairnessChip } from '@/components/dashboard/FairnessCard';
-import type { FairnessMetrics, EngineProposal } from '@/lib/redistribution-engine';
+import type { FairnessMetrics, RedistributionProposal } from '@/lib/redistribution-engine';
 import type { ProposalFairness } from '@/lib/fairness-engine';
 
 // ─── Types ───────────────────────────────────────────────────
