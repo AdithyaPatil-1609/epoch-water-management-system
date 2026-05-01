@@ -136,6 +136,7 @@ export async function GET() {
       confidence:        Math.round((0.7 + (useMlResult ? ml.anomaly_score : summary.anomaly_score) * 0.25) * 100) / 100,
       baseline_consumption_L: ml.baseline_consumption ?? null,
       consumption_ratio:      ml.consumption_ratio     ?? null,
+      rate_of_change:         ml.rate_of_change        ?? null,
       detection_method:       hasPlantedAnomaly ? "rule_based" : ml.detection_method,
       ml_anomaly_score:       ml.anomaly_score,   // Always include raw ML score for debugging
       ml_severity:            ml.severity,

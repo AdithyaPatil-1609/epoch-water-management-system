@@ -16,12 +16,12 @@ import {
 } from '@phosphor-icons/react';
 import { GiniGauge } from '@/components/charts/GiniGauge';
 import { FairnessChip } from '@/components/dashboard/FairnessCard';
-import type { FairnessMetrics, EngineProposal } from '@/lib/redistribution-engine';
+import type { FairnessMetrics, RedistributionProposal } from '@/lib/redistribution-engine';
 import type { ProposalFairness } from '@/lib/fairness-engine';
 
 // ─── Types ───────────────────────────────────────────────────
 
-interface EnrichedProposal extends EngineProposal {
+interface EnrichedProposal extends RedistributionProposal {
   fairness?: ProposalFairness | null;
 }
 
@@ -92,7 +92,7 @@ function FairnessComparison({
         </h2>
         {improvementPct > 0 ? (
           <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-800">
-            ↓ {improvementPct}% Gini improvement
+            ↓ {improvementPct.toFixed(1)}% Gini improvement
           </span>
         ) : (
           <span className="text-xs font-medium px-2.5 py-1 rounded-full bg-slate-100 text-slate-600">
@@ -170,9 +170,9 @@ function ProposalCard({
       <div className="p-4">
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-3 font-semibold text-slate-900">
-            <span className="text-sm">{proposal.source_name}</span>
+            <span className="text-sm">{proposal.source_zone}</span>
             <ArrowRight size={14} className="text-slate-400 shrink-0" />
-            <span className="text-sm">{proposal.dest_name}</span>
+            <span className="text-sm">{proposal.dest_zone}</span>
           </div>
           <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${feasibilityStyle}`}>
             {proposal.feasibility}
@@ -184,7 +184,7 @@ function ProposalCard({
           <div className="bg-slate-50 rounded-lg p-2.5">
             <p className="text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1">Volume</p>
             <p className="text-base font-mono font-bold text-slate-900">
-              {proposal.volume_ML} <span className="text-xs font-sans text-slate-500">ML/d</span>
+              {proposal.volume.toFixed(2)} <span className="text-xs font-sans text-slate-500">ML/d</span>
             </p>
           </div>
           <div className="bg-slate-50 rounded-lg p-2.5">
@@ -241,7 +241,7 @@ function ProposalCard({
             Approve
           </button>
           <button
-            onClick={() => onReject(proposal.proposal_id)}
+            onClick={() => onReject(proposal.id)}
             className="flex items-center justify-center gap-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm font-semibold py-2 px-4 rounded-lg transition-colors"
           >
             <XCircle size={15} />
@@ -317,19 +317,18 @@ export default function RedistributionPage() {
         operator_id: 'manager_demo',
         action: 'Approve',
         record_type: 'proposal',
-        record_id: prop.proposal_id,
+        record_id: prop.id,
         source_zone: prop.source_zone,
         dest_zone: prop.dest_zone,
-        volume_ML: prop.volume_ML,
+        volume_ML: prop.volume,
         comment: 'Approved via Redistribution Dashboard',
       }),
     });
-    setData(prev => prev ? { ...prev, proposals: prev.proposals.filter(p => p.proposal_id !== prop.proposal_id) } : null);
-    setTimeout(() => fetchProposals(fairnessWeight), 600);
+    setData(prev => prev ? { ...prev, proposals: prev.proposals.filter(p => p.id !== prop.id) } : null);
   };
 
   const handleReject = (id: string) => {
-    setData(prev => prev ? { ...prev, proposals: prev.proposals.filter(p => p.proposal_id !== id) } : null);
+    setData(prev => prev ? { ...prev, proposals: prev.proposals.filter(p => p.id !== id) } : null);
   };
 
   const handleBulkApprove = async () => {
@@ -471,7 +470,7 @@ export default function RedistributionPage() {
                 <div className="space-y-4">
                   {data.proposals.map(p => (
                     <ProposalCard
-                      key={p.proposal_id}
+                      key={p.id}
                       proposal={p}
                       onApprove={handleApprove}
                       onReject={handleReject}

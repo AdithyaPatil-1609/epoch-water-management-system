@@ -15,10 +15,10 @@ import type {
   AnomalyScore,
   AnomalySeverity,
   MLPipelineConfig,
-  FeatureVector,
   ZoneInput,
 } from '@/lib/types/anomaly';
 import { scoreWithRules } from './fallback-rule-engine';
+import { computeFeatures, normalizeForONNX, type EngineeredFeatures } from '@/lib/feature-engineering';
 
 // ── Scaler shape (JSON written by Python export script) ────────
 interface ScalerParams {
@@ -48,81 +48,7 @@ type OrtModule = {
 
 // ── Feature Engineering ────────────────────────────────────────
 
-function computeFeatures(
-  current: number,
-  timestamp: Date,
-  historicalData: Array<{ timestamp: Date; consumption: number }>,
-  windowDays: number
-): FeatureVector {
-  const windowMs = windowDays * 24 * 60 * 60 * 1000;
-  const cutoff = new Date(timestamp.getTime() - windowMs);
 
-  const windowData = historicalData.filter((r) => r.timestamp >= cutoff);
-  const values = windowData.map((r) => r.consumption);
-
-  // Rolling mean & std
-  const rolling_mean_7d =
-    values.length > 0 ? values.reduce((a, b) => a + b, 0) / values.length : current;
-  const rolling_std_7d =
-    values.length > 1
-      ? Math.sqrt(
-          values.reduce((sum, v) => sum + (v - rolling_mean_7d) ** 2, 0) / values.length
-        )
-      : 0;
-
-  // Same-hour baseline: average consumption at same hour & day-of-week
-  const targetHour = timestamp.getHours();
-  const targetDow = timestamp.getDay(); // 0=Sun…6=Sat
-  const sameSlot = historicalData.filter(
-    (r) => r.timestamp.getHours() === targetHour && r.timestamp.getDay() === targetDow
-  );
-  const same_hour_baseline =
-    sameSlot.length > 0
-      ? sameSlot.reduce((sum, r) => sum + r.consumption, 0) / sameSlot.length
-      : rolling_mean_7d;
-
-  // Temporal features
-  const day_of_week = targetDow;
-  const is_weekday = day_of_week >= 1 && day_of_week <= 5 ? 1 : 0;
-
-  // Derived ratios
-  const consumption_ratio = rolling_mean_7d > 0 ? current / rolling_mean_7d : 1;
-  const previousConsumption =
-    historicalData.length > 0
-      ? historicalData[historicalData.length - 1].consumption
-      : current;
-  const rate_of_change =
-    previousConsumption > 0 ? (current - previousConsumption) / previousConsumption : 0;
-
-  return {
-    rolling_mean_7d,
-    rolling_std_7d,
-    same_hour_baseline,
-    day_of_week,
-    is_weekday,
-    consumption_ratio,
-    rate_of_change,
-  };
-}
-
-function applyScaler(features: FeatureVector, scaler: ScalerParams): number[] {
-  const featureOrder: (keyof FeatureVector)[] = [
-    'rolling_mean_7d',
-    'rolling_std_7d',
-    'same_hour_baseline',
-    'day_of_week',
-    'is_weekday',
-    'consumption_ratio',
-    'rate_of_change',
-  ];
-
-  return featureOrder.map((key, i) => {
-    const raw = features[key];
-    const mean = scaler.mean_[i] ?? 0;
-    const scale = scaler.scale_[i] ?? 1;
-    return scale !== 0 ? (raw - mean) / scale : 0;
-  });
-}
 
 function scoreToSeverity(
   score: number,
@@ -135,7 +61,7 @@ function scoreToSeverity(
 }
 
 function buildExplanation(
-  features: FeatureVector,
+  features: EngineeredFeatures,
   severity: AnomalySeverity,
   zoneId: string
 ): { explanation: string; factors: string[] } {
@@ -274,16 +200,24 @@ export class IsolationForestInference {
     timestamp: Date
   ): Promise<AnomalyScore> {
     const features = computeFeatures(
-      consumption,
-      timestamp,
-      historicalData,
-      config.featureWindowDays
+      { consumption, timestamp },
+      historicalData
     );
 
-    const scaled = applyScaler(features, this.scaler!);
+    const means = this.scaler!.feature_names.reduce((acc, name, i) => {
+      acc[name as keyof EngineeredFeatures] = this.scaler!.mean_[i] ?? 0;
+      return acc;
+    }, {} as Record<keyof EngineeredFeatures, number>);
+
+    const stds = this.scaler!.feature_names.reduce((acc, name, i) => {
+      acc[name as keyof EngineeredFeatures] = this.scaler!.scale_[i] ?? 1;
+      return acc;
+    }, {} as Record<keyof EngineeredFeatures, number>);
+
+    const scaled = normalizeForONNX(features, means, stds);
     const inputTensor = new this.ort!.Tensor(
       'float32',
-      new Float32Array(scaled),
+      scaled,
       [1, scaled.length]
     );
 
@@ -351,6 +285,7 @@ export class IsolationForestInference {
       reason_factors: factors,
       baseline_consumption: Math.round(features.rolling_mean_7d * 100) / 100,
       consumption_ratio: Math.round(features.consumption_ratio * 100) / 100,
+      rate_of_change: Math.round(features.rate_of_change * 100) / 100,
       detection_method: 'ml',
     };
   }

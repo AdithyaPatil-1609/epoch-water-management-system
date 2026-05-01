@@ -34,6 +34,9 @@ export interface AnomalyScore {
   /** current / rolling_mean — useful for UI display. */
   consumption_ratio?: number;
 
+  /** (current - prev) / prev — useful for UI display. */
+  rate_of_change?: number;
+
   /** Which detector produced this score. */
   detection_method: DetectionMethod;
 }
@@ -72,17 +75,7 @@ export interface MLPipelineConfig {
   batchSize: number;
 }
 
-// ── Feature vector (internal, not exported to API consumers) ──
 
-export interface FeatureVector {
-  rolling_mean_7d: number;
-  rolling_std_7d: number;
-  same_hour_baseline: number;
-  day_of_week: number;       // 0 (Mon) – 6 (Sun)
-  is_weekday: number;        // 1 | 0
-  consumption_ratio: number; // current / rolling_mean_7d
-  rate_of_change: number;    // (current - previous) / previous
-}
 
 // ── Zone input shape for batch scoring ────────────────────────
 

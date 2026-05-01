@@ -275,6 +275,8 @@ export interface ZoneSummary {
   anomaly_type: string | null;
   reason: string;
   factors: string[];
+  consumption_ratio?: number;
+  rate_of_change?: number;
 }
 
 export function getLatestZoneSummaries(zones: Zone[], records: ZoneRecord[]): ZoneSummary[] {
