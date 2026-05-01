@@ -1,8 +1,7 @@
 'use client';
 import { useState, useEffect } from 'react';
 import { GiniGauge } from '@/components/charts/GiniGauge';
-import { ProposalQueue } from '@/components/dashboard/ProposalQueue';
-import { RedistributionProposal } from '@/lib/fairness';
+import { ProposalQueue, EnrichedProposal } from '@/components/dashboard/ProposalQueue';
 import { Button } from '@/components/ui/Button';
 
 export default function RedistributionPage() {
@@ -12,7 +11,7 @@ export default function RedistributionPage() {
     projected_gini: number;
     deficit_count: number;
     surplus_count: number;
-    proposals: RedistributionProposal[];
+    proposals: EnrichedProposal[];
   } | null>(null);
 
   const fetchProposals = (weight: number) => {

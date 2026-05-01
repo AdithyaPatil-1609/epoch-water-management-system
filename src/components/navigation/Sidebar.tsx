@@ -8,6 +8,7 @@ import {
   MapTrifold,
   Scales,
   ClipboardText,
+  ChartLineUp,
   List,
   X,
 } from '@phosphor-icons/react';
@@ -16,6 +17,7 @@ import { useState } from 'react';
 const navItems = [
   { href: '/dashboard', label: 'Dashboard', icon: MapTrifold },
   { href: '/redistribution', label: 'Redistribution', icon: Scales },
+  { href: '/fairness', label: 'Fairness', icon: ChartLineUp },
   { href: '/audit', label: 'Audit Trail', icon: ClipboardText },
 ];
 
