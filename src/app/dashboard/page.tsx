@@ -52,7 +52,7 @@ const SEVERITY_BG: Record<string, string> = {
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
  return (
  <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
- <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+ <p className="text-xs font-medium text-slate-800 uppercase tracking-wider mb-1">{label}</p>
  <p className={`text-3xl font-mono font-bold ${color}`}>{value}</p>
  <span className={`mt-2 inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
  sub === 'Normal' || sub === 'OK' || sub === 'All Clear' ? 'bg-emerald-100 text-emerald-800'
@@ -68,7 +68,7 @@ function PressureBar({ zone, pressure }: { zone: string; pressure: number }) {
  const color = pressure >= 2.5 ? 'bg-blue-500' : pressure >= 1.5 ? 'bg-yellow-400' : 'bg-red-500';
  return (
  <div className="flex items-center gap-2 text-xs">
- <span className="w-6 text-slate-500 font-mono shrink-0">{zone.replace('Zone-', '')}</span>
+ <span className="w-6 text-slate-800 font-mono shrink-0">{zone.replace('Zone-', '')}</span>
  <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
  <motion.div
  initial={{ width: 0 }}
@@ -77,7 +77,7 @@ function PressureBar({ zone, pressure }: { zone: string; pressure: number }) {
  className={`h-full rounded-full ${color}`}
  />
  </div>
- <span className="w-12 text-right font-mono text-slate-700">{pressure.toFixed(1)} bar</span>
+ <span className="w-12 text-right font-mono text-black">{pressure.toFixed(1)} bar</span>
  </div>
  );
 }
@@ -108,7 +108,7 @@ export default function Dashboard() {
 
  const addAlert = useCallback((msg: string, type: Alert['type'] = 'info') => {
  setAlerts(prev => [
- { id: Date.now().toString() + Math.random().toString(36).substring(2), time: new Date().toLocaleTimeString(), msg, type },
+ { id: Date.now().toString(), time: new Date().toLocaleTimeString(), msg, type },
  ...prev.slice(0, 19),
  ]);
  }, []);
@@ -257,14 +257,16 @@ export default function Dashboard() {
  }, []);
 
  const handleToggleMST = useCallback(() => {
- if (!showMST) {
+ setShowMST(prev => {
+ if (!prev) {
  setMstEdges(computedMST);
  addAlert(`Prim's MST computed — ${computedMST.length} edges spanning ${zones.length} zones.`, 'info');
  } else {
  setMstEdges([]);
  }
- setShowMST(!showMST);
- }, [showMST, computedMST, zones.length, addAlert]);
+ return !prev;
+ });
+ }, [computedMST, zones.length, addAlert]);
 
  // ─── Render ───────────────────────────────────────────────────
 
@@ -295,22 +297,22 @@ export default function Dashboard() {
  {isDis ? 'Disaster Mode' : 'Water Mode'}
  </span>
  </div>
- <p className="text-xs text-slate-500 mt-0.5">
+ <p className="text-xs text-slate-800 mt-0.5">
  {routingMode ? `Click two nodes to route · ${routeSelection.length === 0 ? 'Select origin' : 'Select destination'}` : 'Click a zone to inspect · Enable routing for Dijkstra'}
  </p>
  </div>
  <div className="flex items-center gap-2">
  <button
  onClick={handleToggleMST}
- className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${showMST ? 'bg-cyan-50 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+ className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${showMST ? 'bg-cyan-50 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50'}`}
  >MST</button>
  <button
  onClick={handleToggleRouting}
- className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition-colors ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+ className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border font-medium transition-colors ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-900 hover:bg-slate-50'}`}
  >
  <ArrowRight size={13} />Route
  </button>
- <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-medium">
+ <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 bg-white text-slate-900 hover:bg-slate-50 font-medium">
  <Shuffle size={13} />Auto-Route
  </button>
  {isDis ? (
@@ -322,7 +324,7 @@ export default function Dashboard() {
  <Lightning size={13} />Simulate Burst
  </button>
  )}
- <button onClick={fetchData} className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50">
+ <button onClick={fetchData} className="text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 text-slate-800 hover:bg-slate-50">
  <ArrowsClockwise size={13} />
  </button>
  </div>
@@ -368,55 +370,40 @@ export default function Dashboard() {
  <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
  <div className={`px-4 py-3 flex items-start justify-between ${SEVERITY_BG[zone.severity] ?? 'bg-slate-50'}`}>
  <div>
- <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{zone.zone_id}</p>
+ <p className="text-[10px] font-bold uppercase tracking-widest text-slate-800">{zone.zone_id}</p>
  <p className="text-base font-semibold text-slate-900">{zone.zone_name}</p>
  </div>
- <button onClick={() => setSelectedZoneId(null)} className="text-slate-400 hover:text-slate-700 p-1 rounded-full hover:bg-white/50 transition-colors">
+ <button onClick={() => setSelectedZoneId(null)} className="text-slate-900 hover:text-black p-1 rounded-full hover:bg-white/50 transition-colors">
  <span className="text-lg leading-none">×</span>
  </button>
  </div>
  <div className="px-4 py-3">
  <div className="flex items-center gap-2 mb-2">
  <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${SEVERITY_BG[zone.severity]}`}>{zone.severity}</span>
- <span className="text-xs text-slate-400 font-mono">score {zone.anomaly_score?.toFixed(2)}</span>
+ <span className="text-xs text-slate-900 font-mono">score {zone.anomaly_score?.toFixed(2)}</span>
  </div>
- <p className="text-xs text-slate-600 leading-relaxed">{zone.reason}</p>
+ <p className="text-xs text-slate-900 leading-relaxed">{zone.reason}</p>
  {zone.factors?.length > 0 && (
  <div className="flex flex-wrap gap-1 mt-2">
- {zone.factors.map(f => <span key={f} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium uppercase tracking-wider">{f}</span>)}
+ {zone.factors.map(f => <span key={f} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-900 rounded font-medium uppercase tracking-wider">{f}</span>)}
  </div>
  )}
  </div>
  {/* Metrics */}
  <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100 ">
  <div className="px-3 py-2.5 text-center">
- <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Demand</p>
- <p className="text-sm font-mono font-bold text-slate-900 ">{zone.current_consumption_ML}<span className="text-[9px] text-slate-400 ml-0.5">ML</span></p>
+ <p className="text-[9px] uppercase tracking-wider text-slate-900 mb-1">Demand</p>
+ <p className="text-sm font-mono font-bold text-slate-900 ">{zone.current_consumption_ML}<span className="text-[9px] text-slate-900 ml-0.5">ML</span></p>
  </div>
  <div className="px-3 py-2.5 text-center">
- <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Pressure</p>
- <p className="text-sm font-mono font-bold text-slate-900 ">{zone.pressure_bar?.toFixed(1)}<span className="text-[9px] text-slate-400 ml-0.5">bar</span></p>
+ <p className="text-[9px] uppercase tracking-wider text-slate-900 mb-1">Pressure</p>
+ <p className="text-sm font-mono font-bold text-slate-900 ">{zone.pressure_bar?.toFixed(1)}<span className="text-[9px] text-slate-900 ml-0.5">bar</span></p>
  </div>
  <div className="px-3 py-2.5 text-center">
- <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Supplied</p>
- <p className={`text-sm font-mono font-bold ${zone.fulfillment_pct >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{zone.fulfillment_pct}<span className="text-[9px] text-slate-400 ml-0.5">%</span></p>
+ <p className="text-[9px] uppercase tracking-wider text-slate-900 mb-1">Supplied</p>
+ <p className={`text-sm font-mono font-bold ${zone.fulfillment_pct >= 80 ? 'text-emerald-600' : 'text-red-600'}`}>{zone.fulfillment_pct}<span className="text-[9px] text-slate-900 ml-0.5">%</span></p>
  </div>
  </div>
- {/* ML Insights */}
- {(zone.consumption_ratio !== undefined && zone.rate_of_change !== undefined) && (
- <div className="bg-slate-50 px-4 py-3 border-t border-slate-100 grid grid-cols-2 gap-4">
- <div>
- <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Consumption Ratio</p>
- <p className="text-xs font-mono font-bold text-slate-700">{zone.consumption_ratio.toFixed(2)}x <span className="text-slate-400 font-sans font-normal">baseline</span></p>
- </div>
- <div>
- <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-0.5">Rate of Change</p>
- <p className={`text-xs font-mono font-bold ${zone.rate_of_change > 0 ? 'text-orange-600' : zone.rate_of_change < 0 ? 'text-emerald-600' : 'text-slate-700'}`}>
- {zone.rate_of_change > 0 ? '+' : ''}{(zone.rate_of_change * 100).toFixed(1)}% <span className="text-slate-400 font-sans font-normal">vs prev</span>
- </p>
- </div>
- </div>
- )}
  {/* Actions */}
  <div className="px-4 py-3 border-t border-slate-100 ">
  {actionLogged ? (
@@ -424,7 +411,7 @@ export default function Dashboard() {
  ) : (
  <div className="flex gap-2">
  <button onClick={() => handleAction('Investigate')} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 rounded-lg transition-colors">Investigate</button>
- <button onClick={() => handleAction('Acknowledge')} className="flex-1 text-xs border border-slate-200 text-slate-600 font-semibold py-1.5 rounded-lg hover:bg-slate-50 transition-colors">Acknowledge</button>
+ <button onClick={() => handleAction('Acknowledge')} className="flex-1 text-xs border border-slate-200 text-slate-900 font-semibold py-1.5 rounded-lg hover:bg-slate-50 :bg-slate-700 transition-colors">Acknowledge</button>
  </div>
  )}
  </div>
@@ -440,7 +427,7 @@ export default function Dashboard() {
  <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
  <Gauge size={15} weight="duotone" className="text-blue-600" />Zone Pressure
  </h2>
- <span className="text-[10px] text-slate-400 font-mono">bar</span>
+ <span className="text-[10px] text-slate-900 font-mono">bar</span>
  </div>
  <div className="space-y-2">
  {zones.slice(0, 12).map(z => (
@@ -460,11 +447,11 @@ export default function Dashboard() {
  {aiLoading && <span className="w-3 h-3 border border-emerald-400 border-t-transparent rounded-full animate-spin ml-1" />}
  </h2>
  <button onClick={() => fetchAiAdvice(zones, burstZoneIds, deficitCount, avgPressure, mode)} disabled={aiLoading}
- className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-40">
+ className="text-[10px] flex items-center gap-1 text-slate-900 hover:text-black :text-slate-200 transition-colors disabled:opacity-40">
  <ArrowsClockwise size={11} className={aiLoading ? 'animate-spin' : ''} />Refresh
  </button>
  </div>
- <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-400 mb-2">Gemini Analysis</p>
+ <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-900 mb-2">Gemini Analysis</p>
  {aiError ? (
  <div className="text-xs text-orange-600 bg-orange-50 border border-orange-100 rounded-lg p-2">
  {aiError.includes('not configured') ? <><strong>API key needed.</strong> Add to <code className="bg-orange-100 px-1 rounded">.env.local</code> and restart.</> : aiError}
@@ -474,12 +461,12 @@ export default function Dashboard() {
  ) : (
  <ol className="space-y-2">
  {aiAdvice.map((advice, i) => (
- <li key={i} className="flex gap-2 text-xs text-slate-700 ">
+ <li key={i} className="flex gap-2 text-xs text-black ">
  <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
  <span>{advice}</span>
  </li>
  ))}
- {aiAdvice.length === 0 && <li className="text-xs text-slate-400">Click Refresh to ask Gemini.</li>}
+ {aiAdvice.length === 0 && <li className="text-xs text-slate-900">Click Refresh to ask Gemini.</li>}
  </ol>
  )}
  </div>
@@ -488,9 +475,9 @@ export default function Dashboard() {
  <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex-1">
  <h2 className="text-sm font-semibold text-slate-800 flex items-center justify-between mb-3">
  <span className="flex items-center gap-1.5"><BellRinging size={15} weight="duotone" className="text-orange-500" />Alert Log</span>
- <span className="text-[10px] text-slate-400">{alerts.length} event{alerts.length !== 1 ? 's' : ''}</span>
+ <span className="text-[10px] text-slate-900">{alerts.length} event{alerts.length !== 1 ? 's' : ''}</span>
  </h2>
- {alerts.length === 0 ? <p className="text-xs text-slate-400">No events yet.</p> : (
+ {alerts.length === 0 ? <p className="text-xs text-slate-900">No events yet.</p> : (
  <div className="space-y-2 max-h-48 overflow-y-auto">
  <AnimatePresence>
  {alerts.map(alert => (
@@ -498,9 +485,9 @@ export default function Dashboard() {
  className={`text-xs p-2 rounded-lg border ${
  alert.type === 'critical' ? 'bg-red-50 border-red-100 text-red-800'
  : alert.type === 'warn' ? 'bg-yellow-50 border-yellow-100 text-yellow-800'
- : 'bg-slate-50 border-slate-100 text-slate-700 '
+ : 'bg-slate-50 border-slate-100 text-black '
  }`}>
- <span className="font-mono text-[10px] text-slate-400 mr-1">{alert.time}</span>
+ <span className="font-mono text-[10px] text-slate-900 mr-1">{alert.time}</span>
  {alert.msg}
  </motion.div>
  ))}

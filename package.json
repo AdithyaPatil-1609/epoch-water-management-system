@@ -17,7 +17,6 @@
     "@google/generative-ai": "^0.24.1",
     "@phosphor-icons/react": "^2.1.10",
     "date-fns": "^4.1.0",
-    "exceljs": "^4.4.0",
     "framer-motion": "^12.38.0",
     "leaflet": "^1.9.4",
     "mongodb": "^7.2.0",

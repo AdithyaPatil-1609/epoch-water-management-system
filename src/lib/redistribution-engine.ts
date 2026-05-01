@@ -3,33 +3,70 @@
  * Combines fairness metrics, pressure constraints, and greedy heuristics
  */
 
-export interface Zone {
-  id: string;
-  demand: number;
-  current_supply: number;
-  pressure: number;
-  adjacent_zones: string[];
-  anomaly_type?: string;
+import type { Zone, ZoneSummary } from "./synthetic-data";
+
+// ─── Internal Engine Zone (flat representation) ───────────────
+
+interface EngineZone {
+ id: string;
+ name: string;
+ demand: number; // current_consumption_ML
+ current_supply: number; // supply_capacity_ML
+ pressure: number; // pressure_bar
+ adjacent_zones: string[]; // connected_zones
+ anomaly_type?: string | null;
 }
 
-export interface RedistributionProposal {
-  id: string;
-  source_zone: string;
-  dest_zone: string;
-  volume: number;
-  pressure_impact: number;
-  fairness_gain: number;
-  feasibility: "safe" | "risky" | "infeasible";
-  reason: string;
-  multi_objective_score: number;
-}
+// ─── Public Types ─────────────────────────────────────────────
 
 export interface FairnessMetrics {
-  gini_coefficient: number;
-  mean_fulfillment: number;
-  std_dev_fulfillment: number;
-  min_fulfillment: number;
-  max_fulfillment: number;
+ gini_coefficient: number;
+ mean_fulfillment: number;
+ std_dev_fulfillment: number;
+ min_fulfillment: number;
+ max_fulfillment: number;
+}
+
+export interface EngineProposal {
+ proposal_id: string;
+ source_zone: string;
+ source_name: string;
+ dest_zone: string;
+ dest_name: string;
+ volume_ML: number;
+ pressure_impact: number;
+ fairness_gain: number;
+ feasibility: "safe" | "risky" | "infeasible";
+ reason: string;
+ multi_objective_score: number;
+ // Kept for backwards compat with existing ProposalQueue
+ gini_improvement: number;
+ score: number;
+}
+
+export interface RedistributionResult {
+ proposals: EngineProposal[];
+ baseline_fairness: FairnessMetrics;
+ projected_fairness: FairnessMetrics;
+ gini_improvement_percent: number;
+ current_gini: number;
+ projected_gini: number;
+ deficit_count: number;
+ surplus_count: number;
+}
+
+// ─── Mapper: existing Zone+ZoneSummary → EngineZone ──────────
+
+function toEngineZone(zone: Zone, summary: ZoneSummary): EngineZone {
+ return {
+ id: zone.zone_id,
+ name: zone.zone_name,
+ demand: Math.max(summary.current_consumption_ML, 1),
+ current_supply: zone.supply_capacity_ML,
+ pressure: summary.pressure_bar,
+ adjacent_zones: zone.connected_zones,
+ anomaly_type: summary.anomaly_type,
+ };
 }
 
 /**
@@ -38,54 +75,46 @@ export interface FairnessMetrics {
 export function computeFairnessMetrics(zones: Zone[]): FairnessMetrics {
   const fulfillments = zones.map(z => z.current_supply / z.demand);
 
-  // Gini coefficient: measure of inequality (0 = perfect equality, 1 = perfect inequality)
-  const sortedFulfillments = [...fulfillments].sort((a, b) => a - b);
-  const n = sortedFulfillments.length;
-  const mean = fulfillments.reduce((a, b) => a + b, 0) / n;
+export function computeFairnessMetrics(zones: EngineZone[]): FairnessMetrics {
+ const fulfillments = zones.map(z => Math.min(z.current_supply / z.demand, 1.5));
+ const sortedFulfillments = [...fulfillments].sort((a, b) => a - b);
+ const n = sortedFulfillments.length;
+ const mean = fulfillments.reduce((a, b) => a + b, 0) / n;
 
-  let gini_sum = 0;
-  for (let i = 0; i < n; i++) {
-    gini_sum += (2 * (i + 1) - n - 1) * sortedFulfillments[i];
-  }
-  const gini = mean > 0 ? gini_sum / (n * n * mean) : 0;
+ let gini_sum = 0;
+ for (let i = 0; i < n; i++) {
+ gini_sum += (2 * (i + 1) - n - 1) * sortedFulfillments[i];
+ }
+ const gini = mean > 0 ? Math.abs(gini_sum / (n * n * mean)) : 0;
 
-  // Additional fairness metrics
-  const mean_fulfillment = mean;
-  const variance =
-    fulfillments.reduce((sum, f) => sum + Math.pow(f - mean, 2), 0) / n;
-  const std_dev_fulfillment = Math.sqrt(variance);
+ const variance = fulfillments.reduce((sum, f) => sum + Math.pow(f - mean, 2), 0) / n;
 
-  return {
-    gini_coefficient: gini,
-    mean_fulfillment,
-    std_dev_fulfillment,
-    min_fulfillment: Math.min(...fulfillments),
-    max_fulfillment: Math.max(...fulfillments),
-  };
+ return {
+ gini_coefficient: Math.round(gini * 1000) / 1000,
+ mean_fulfillment: Math.round(mean * 1000) / 1000,
+ std_dev_fulfillment: Math.round(Math.sqrt(variance) * 1000) / 1000,
+ min_fulfillment: Math.round(Math.min(...fulfillments) * 1000) / 1000,
+ max_fulfillment: Math.round(Math.min(Math.max(...fulfillments), 1.5) * 1000) / 1000,
+ };
 }
 
-/**
- * Step 2: Identify deficit and surplus zones
- */
-function classifyZones(zones: Zone[]): {
-  deficit: Zone[];
-  surplus: Zone[];
-} {
-  const deficit: Zone[] = [];
-  const surplus: Zone[] = [];
+// ─── Step 2: Classify Zones ───────────────────────────────────
 
-  for (const zone of zones) {
-    const fulfillment_ratio = zone.current_supply / zone.demand;
+function classifyEngineZones(zones: EngineZone[]): { deficit: EngineZone[]; surplus: EngineZone[] } {
+ const deficit: EngineZone[] = [];
+ const surplus: EngineZone[] = [];
 
-    // Zones with <90% fulfillment are in deficit; >110% are surplus
-    if (fulfillment_ratio < 0.9) {
-      deficit.push(zone);
-    } else if (fulfillment_ratio > 1.1) {
-      surplus.push(zone);
-    }
-  }
+ for (const zone of zones) {
+ const ratio = zone.current_supply / zone.demand;
+ if (ratio < 0.9) deficit.push(zone);
+ else if (ratio > 1.1) surplus.push(zone);
+ }
 
-  return { deficit, surplus };
+ // Sort deficit by most undersupplied first; surplus by most oversupplied first
+ deficit.sort((a, b) => (a.current_supply / a.demand) - (b.current_supply / b.demand));
+ surplus.sort((a, b) => (b.current_supply / b.demand) - (a.current_supply / a.demand));
+
+ return { deficit, surplus };
 }
 
 /**
@@ -110,166 +139,118 @@ function simulatePressureImpact(
  * Step 4: Find shortest network path between zones (BFS)
  */
 function findNetworkDistance(
-  source_id: string,
-  dest_id: string,
-  zones_map: Map<string, Zone>
+ sourceId: string,
+ destId: string,
+ zonesMap: Map<string, EngineZone>
 ): number {
-  const source = zones_map.get(source_id);
-  if (!source) return Infinity;
+ if (sourceId === destId) return 0;
+ const visited = new Set<string>();
+ const queue: [string, number][] = [[sourceId, 0]];
 
-  const visited = new Set<string>();
-  const queue: [string, number][] = [[source_id, 0]];
+ while (queue.length > 0) {
+ const [currentId, distance] = queue.shift()!;
+ if (currentId === destId) return distance;
+ if (visited.has(currentId)) continue;
 
-  while (queue.length > 0) {
-    const [current_id, distance] = queue.shift()!;
+ visited.add(currentId);
+ const current = zonesMap.get(currentId);
+ if (!current) continue;
 
-    if (current_id === dest_id) return distance;
-    if (visited.has(current_id)) continue;
-
-    visited.add(current_id);
-    const current = zones_map.get(current_id);
-    if (!current) continue;
-
-    for (const neighbor_id of current.adjacent_zones) {
-      if (!visited.has(neighbor_id)) {
-        queue.push([neighbor_id, distance + 1]);
-      }
-    }
-  }
-
-  return Infinity; // Not connected
+ for (const neighborId of current.adjacent_zones) {
+ if (!visited.has(neighborId)) {
+ queue.push([neighborId, distance + 1]);
+ }
+ }
+ }
+ return Infinity;
 }
 
-/**
- * Step 5: Generate candidate transfers from each deficit zone
- */
-function generateCandidateTransfers(
-  deficit_zone: Zone,
-  surplus_zones: Zone[],
-  zones_map: Map<string, Zone>,
-  baseline_gini: number
-): RedistributionProposal[] {
-  const candidates: RedistributionProposal[] = [];
+// ─── Step 4: Pressure Impact Simulation ──────────────────────
 
-  // For each surplus zone, calculate how much can be transferred
-  for (const surplus of surplus_zones) {
-    const network_distance = findNetworkDistance(
-      surplus.id,
-      deficit_zone.id,
-      zones_map
-    );
-
-    // Skip if not connected
-    if (network_distance === Infinity) continue;
-
-    // Calculate transferable volume: min of available surplus and needed deficit
-    const available_surplus =
-      surplus.current_supply - 1.1 * surplus.demand; // Keep 10% buffer
-    const needed_deficit = 0.9 * deficit_zone.demand - deficit_zone.current_supply;
-
-    if (available_surplus <= 0) continue;
-
-    const max_transfer = Math.min(available_surplus, needed_deficit);
-
-    // Generate proposals at different transfer volumes
-    const volumes = [
-      max_transfer * 0.25,
-      max_transfer * 0.5,
-      max_transfer * 0.75,
-    ];
-
-    for (const volume of volumes) {
-      if (volume < 0.01) continue; // Skip trivial transfers
-
-      // Calculate pressure impact
-      const pressure_impact = simulatePressureImpact(
-        surplus,
-        deficit_zone,
-        volume,
-        zones_map,
-        network_distance
-      );
-
-      // Estimate fairness gain
-      const new_deficit_fulfillment =
-        (deficit_zone.current_supply + volume) / deficit_zone.demand;
-      const new_surplus_fulfillment =
-        (surplus.current_supply - volume) / surplus.demand;
-
-      // Simple fairness gain: reduction in fulfillment gap
-      const old_gap = Math.abs(1 - deficit_zone.current_supply / deficit_zone.demand);
-      const new_gap = Math.abs(1 - new_deficit_fulfillment);
-      const fairness_gain = old_gap - new_gap;
-
-      // Feasibility check
-      const dest_pressure = deficit_zone.pressure + pressure_impact;
-      const is_feasible = dest_pressure >= 1.5; // Minimum pressure requirement
-      const feasibility = is_feasible ? "safe" : "risky";
-
-      const proposal: RedistributionProposal = {
-        id: `${surplus.id}->${deficit_zone.id}-${volume.toFixed(2)}`,
-        source_zone: surplus.id,
-        dest_zone: deficit_zone.id,
-        volume,
-        pressure_impact,
-        fairness_gain,
-        feasibility,
-        reason: `Transfer ${volume.toFixed(2)} units from ${surplus.id} (surplus) to ${deficit_zone.id} (deficit). Pressure change: ${pressure_impact.toFixed(2)} bar.`,
-        multi_objective_score: 0, // Will be calculated after all proposals
-      };
-
-      candidates.push(proposal);
-    }
-  }
-
-  return candidates;
+function simulatePressureImpact(
+ source: EngineZone,
+ volume: number,
+ networkDistance: number
+): number {
+ const baseLoss = (volume / source.current_supply) * 0.1;
+ const distanceFactor = networkDistance * 0.05;
+ return -(baseLoss + distanceFactor);
 }
 
-/**
- * Step 6: Score and rank proposals using multi-objective criteria
- * Higher weight on fairness gain; penalty for pressure loss
- */
-function rankProposals(
-  proposals: RedistributionProposal[],
-  fairness_priority: number = 0.7 // 70% weight on fairness, 30% on pressure
-): RedistributionProposal[] {
-  const max_fairness_gain = Math.max(
-    ...proposals.map(p => p.fairness_gain),
-    0.001
-  );
-  const min_pressure_impact = Math.min(
-    ...proposals.map(p => p.pressure_impact),
-    -0.1
-  );
+// ─── Step 5: Generate Candidate Transfers ────────────────────
 
-  // Normalize scores to [0, 1]
-  for (const proposal of proposals) {
-    const fairness_score = proposal.fairness_gain / max_fairness_gain;
-    const pressure_penalty = Math.max(
-      0,
-      -proposal.pressure_impact / -min_pressure_impact
-    );
+function generateCandidates(
+ deficitZone: EngineZone,
+ surplusZones: EngineZone[],
+ zonesMap: Map<string, EngineZone>
+): EngineProposal[] {
+ const candidates: EngineProposal[] = [];
 
-    // Multi-objective: weighted combination
-    const base_score =
-      fairness_priority * fairness_score +
-      (1 - fairness_priority) * (1 - pressure_penalty);
+ for (const surplus of surplusZones) {
+ const networkDistance = findNetworkDistance(surplus.id, deficitZone.id, zonesMap);
+ if (networkDistance === Infinity || networkDistance > 4) continue; // Max 4 hops
 
-    // Penalize risky/infeasible proposals
-    const feasibility_multiplier =
-      proposal.feasibility === "safe"
-        ? 1.0
-        : proposal.feasibility === "risky"
-          ? 0.6
-          : 0.0;
+ const availableSurplus = surplus.current_supply - 1.1 * surplus.demand;
+ const neededDeficit = 0.9 * deficitZone.demand - deficitZone.current_supply;
 
-    proposal.multi_objective_score = base_score * feasibility_multiplier;
-  }
+ if (availableSurplus <= 0 || neededDeficit <= 0) continue;
 
-  // Sort by score (descending)
-  return proposals.sort(
-    (a, b) => b.multi_objective_score - a.multi_objective_score
-  );
+ const maxTransfer = Math.min(availableSurplus, neededDeficit);
+
+ // Three candidate volumes: 25%, 50%, 75% of max transfer
+ for (const fraction of [0.25, 0.5, 0.75]) {
+ const volume = maxTransfer * fraction;
+ if (volume < 5) continue; // Skip trivial transfers
+
+ const pressureImpact = simulatePressureImpact(surplus, volume, networkDistance);
+ const destPressureAfter = deficitZone.pressure + pressureImpact;
+
+ const newDeficitFulfill = (deficitZone.current_supply + volume) / deficitZone.demand;
+ const oldGap = Math.abs(1 - deficitZone.current_supply / deficitZone.demand);
+ const newGap = Math.abs(1 - newDeficitFulfill);
+ const fairnessGain = Math.max(oldGap - newGap, 0);
+
+ const isSafe = destPressureAfter >= 1.5;
+ const isRisky = destPressureAfter >= 1.2 && destPressureAfter < 1.5;
+ const feasibility: EngineProposal["feasibility"] = isSafe ? "safe" : isRisky ? "risky" : "infeasible";
+
+ candidates.push({
+ proposal_id: `${surplus.id}->${deficitZone.id}-${Math.round(volume)}`,
+ source_zone: surplus.id,
+ source_name: surplus.name,
+ dest_zone: deficitZone.id,
+ dest_name: deficitZone.name,
+ volume_ML: Math.round(volume),
+ pressure_impact: Math.round(pressureImpact * 100) / 100,
+ fairness_gain: Math.round(fairnessGain * 1000) / 1000,
+ feasibility,
+ reason: `Transfer ${Math.round(volume)} ML/d from ${surplus.name} (${Math.round(surplus.current_supply / surplus.demand * 100)}% supplied) to ${deficitZone.name} (${Math.round(deficitZone.current_supply / deficitZone.demand * 100)}% supplied). Network distance: ${networkDistance} hop${networkDistance !== 1 ? "s" : ""}.`,
+ multi_objective_score: 0, // Filled in rankProposals
+ gini_improvement: fairnessGain,
+ score: 0,
+ });
+ }
+ }
+
+ return candidates;
+}
+
+// ─── Step 6: Multi-Objective Ranking ─────────────────────────
+
+function rankProposals(proposals: EngineProposal[], fairnessPriority: number): EngineProposal[] {
+ const maxFairnessGain = Math.max(...proposals.map(p => p.fairness_gain), 0.001);
+ const minPressureImpact = Math.min(...proposals.map(p => p.pressure_impact), -0.1);
+
+ for (const p of proposals) {
+ const fairnessScore = p.fairness_gain / maxFairnessGain;
+ const pressurePenalty = Math.max(0, -p.pressure_impact / -minPressureImpact);
+ const baseScore = fairnessPriority * fairnessScore + (1 - fairnessPriority) * (1 - pressurePenalty);
+ const feasibilityMult = p.feasibility === "safe" ? 1.0 : p.feasibility === "risky" ? 0.6 : 0.0;
+ p.multi_objective_score = Math.round(baseScore * feasibilityMult * 1000) / 1000;
+ p.score = p.multi_objective_score; // alias
+ }
+
+ return proposals.sort((a, b) => b.multi_objective_score - a.multi_objective_score);
 }
 
 /**
@@ -289,71 +270,97 @@ function selectNonConflictingProposals(
       continue;
     }
 
-    selected.push(proposal);
-    used_zones.add(proposal.source_zone);
-    used_zones.add(proposal.dest_zone);
+function selectNonConflicting(ranked: EngineProposal[], maxProposals = 5): EngineProposal[] {
+ const selected: EngineProposal[] = [];
+ const usedZones = new Set<string>();
 
-    if (selected.length >= max_proposals) break;
-  }
+ for (const p of ranked) {
+ if (usedZones.has(p.source_zone) || usedZones.has(p.dest_zone)) continue;
+ selected.push(p);
+ usedZones.add(p.source_zone);
+ usedZones.add(p.dest_zone);
+ if (selected.length >= maxProposals) break;
+ }
 
-  return selected;
+ return selected;
 }
 
 /**
  * Main orchestration: Generate, rank, and select redistribution proposals
  */
 export function generateRedistributionProposals(
-  zones: Zone[],
-  fairness_priority: number = 0.7
-): {
-  proposals: RedistributionProposal[];
-  baseline_fairness: FairnessMetrics;
-  projected_fairness: FairnessMetrics;
-} {
-  const zones_map = new Map(zones.map(z => [z.id, z]));
+ summaries: ZoneSummary[],
+ zones: Zone[],
+ fairnessPriority = 0.7
+): RedistributionResult {
+ // Map to engine format
+ const engineZones: EngineZone[] = zones
+ .map(zone => {
+ const summary = summaries.find(s => s.zone_id === zone.zone_id);
+ if (!summary) return null;
+ return toEngineZone(zone, summary);
+ })
+ .filter((z): z is EngineZone => z !== null);
 
-  // Step 1: Measure baseline fairness
-  const baseline_fairness = computeFairnessMetrics(zones);
+ const zonesMap = new Map(engineZones.map(z => [z.id, z]));
 
-  // Step 2: Classify zones
-  const { deficit, surplus } = classifyZones(zones);
+ // Baseline fairness
+ const baselineFairness = computeFairnessMetrics(engineZones);
 
-  // Step 3: Generate candidates
-  const all_candidates: RedistributionProposal[] = [];
-  for (const deficit_zone of deficit) {
-    const candidates = generateCandidateTransfers(
-      deficit_zone,
-      surplus,
-      zones_map,
-      baseline_fairness.gini_coefficient
-    );
-    all_candidates.push(...candidates);
-  }
+ // Classify zones
+ const { deficit, surplus } = classifyEngineZones(engineZones);
 
-  // Step 4: Rank all candidates
-  const ranked = rankProposals(all_candidates, fairness_priority);
+ // Generate all candidates
+ const allCandidates: EngineProposal[] = [];
+ for (const deficitZone of deficit) {
+ allCandidates.push(...generateCandidates(deficitZone, surplus, zonesMap));
+ }
 
-  // Step 5: Select non-conflicting proposals
-  const selected = selectNonConflictingProposals(ranked, 5);
+ if (allCandidates.length === 0) {
+ return {
+ proposals: [],
+ baseline_fairness: baselineFairness,
+ projected_fairness: baselineFairness,
+ gini_improvement_percent: 0,
+ current_gini: baselineFairness.gini_coefficient,
+ projected_gini: baselineFairness.gini_coefficient,
+ deficit_count: deficit.length,
+ surplus_count: surplus.length,
+ };
+ }
 
-  // Step 6: Simulate projected fairness after selected proposals
-  const zones_after = zones.map(z => {
-    let supply = z.current_supply;
-    for (const proposal of selected) {
-      if (proposal.source_zone === z.id) {
-        supply -= proposal.volume;
-      }
-      if (proposal.dest_zone === z.id) {
-        supply += proposal.volume;
-      }
-    }
-    return { ...z, current_supply: supply };
-  });
-  const projected_fairness = computeFairnessMetrics(zones_after);
+ // Rank and select
+ const ranked = rankProposals(allCandidates, fairnessPriority);
+ const selected = selectNonConflicting(ranked, 5);
 
-  return {
-    proposals: selected,
-    baseline_fairness,
-    projected_fairness,
-  };
+ // Projected fairness after selected transfers
+ const zonesAfter = engineZones.map(z => {
+ let supply = z.current_supply;
+ for (const p of selected) {
+ if (p.source_zone === z.id) supply -= p.volume_ML;
+ if (p.dest_zone === z.id) supply += p.volume_ML;
+ }
+ return { ...z, current_supply: Math.max(supply, 0) };
+ });
+ const projectedFairness = computeFairnessMetrics(zonesAfter);
+
+ const giniImprovementPct =
+ baselineFairness.gini_coefficient > 0
+ ? Math.round(
+ ((baselineFairness.gini_coefficient - projectedFairness.gini_coefficient) /
+ baselineFairness.gini_coefficient) *
+ 100
+ )
+ : 0;
+
+ return {
+ proposals: selected,
+ baseline_fairness: baselineFairness,
+ projected_fairness: projectedFairness,
+ gini_improvement_percent: giniImprovementPct,
+ current_gini: baselineFairness.gini_coefficient,
+ projected_gini: projectedFairness.gini_coefficient,
+ deficit_count: deficit.length,
+ surplus_count: surplus.length,
+ };
 }
