@@ -1,17 +1,10 @@
 @import "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
 :root {
   --background: #f9fafb;
   --foreground: #0f172a;
   --sidebar-width: 240px;
-}
-
-.dark {
-  --background: #0f172a;
-  --foreground: #f8fafc;
 }
 
 @theme inline {
@@ -22,10 +15,9 @@
 }
 
 body {
-  background-color: var(--background);
+  background: var(--background);
   color: var(--foreground);
   font-family: var(--font-geist-sans), system-ui, -apple-system, sans-serif;
-  transition: background-color 0.3s ease, color 0.3s ease;
 }
 
 /* ── Custom scrollbar ─────────────────────────────────────── */
