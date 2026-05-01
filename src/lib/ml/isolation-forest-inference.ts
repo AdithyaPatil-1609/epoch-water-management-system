@@ -34,8 +34,10 @@ type OrtSession = {
   run: (feeds: Record<string, OrtTensor>) => Promise<Record<string, OrtTensor>>;
 };
 type OrtTensor = {
-  data: Float32Array;
+  data: Float32Array | BigInt64Array;
   dims: number[];
+  /** onnxruntime-node attaches cpuData for sequence/map outputs */
+  cpuData?: Float32Array | number[];
 };
 type OrtModule = {
   InferenceSession: {
@@ -315,16 +317,13 @@ export class IsolationForestInference {
 
       // Extract probability / score map
       const probOutput = outputs['output_probability'];
-      if (probOutput?.cpuData || probOutput?.data) {
-        // Flat float array — layout depends on skl2onnx version
-        const flat = probOutput.cpuData ?? probOutput.data;
-        if (flat && flat.length >= 2) {
-          // flat[0] = P(normal=-1), flat[1] = P(anomaly=1) or vice versa
-          // Take whichever index corresponds to the anomaly class
-          rawScore = Math.max(flat[0], flat[1]) as number;
-          // If both near 0.5 and label says anomaly, push score higher
-          if (isAnomaly && rawScore < 0.5) rawScore = 0.65;
-        }
+      const probData = (probOutput as { cpuData?: number[]; data?: unknown })?.cpuData
+        ?? (probOutput?.data instanceof Float32Array ? Array.from(probOutput.data) : null);
+
+      if (probData && probData.length >= 2) {
+        // probData[0] = P(normal=-1), probData[1] = P(anomaly=1) or vice versa
+        rawScore = Math.max(probData[0] as number, probData[1] as number);
+        if (isAnomaly && rawScore < 0.5) rawScore = 0.65;
       } else {
         // Fallback: use label as binary signal, map to score range
         rawScore = isAnomaly ? 0.72 : 0.12;
