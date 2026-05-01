@@ -1,0 +1,385 @@
+// ──────────────────────────────────────────────────────────────
+// Synthetic Data Generator — 30-day time series for 20+ zones
+// ──────────────────────────────────────────────────────────────
+
+export interface Zone {
+  zone_id: string;
+  zone_name: string;
+  lat: number;
+  lng: number;
+  baseline_demand_ML: number;
+  supply_capacity_ML: number;
+  connected_zones: string[];
+  min_operating_pressure: number;
+}
+
+export interface ZoneRecord {
+  zone_id: string;
+  zone_name: string;
+  lat: number;
+  lng: number;
+  timestamp: Date;
+  consumption_ML: number;
+  baseline_ML: number;
+  pressure_bar: number;
+  anomaly_type?: string | null;
+}
+
+export interface AnomalyInfo {
+  zone_id: string;
+  anomaly_score: number;
+  severity: "Normal" | "Suspicious" | "Probable" | "Critical";
+  reason: string;
+  factors: string[];
+  confidence: number;
+  anomaly_type: string;
+  peak_consumption: number;
+  baseline: number;
+  duration_days: number;
+}
+
+// ─── Zone Definitions ────────────────────────────────────────
+
+const ZONE_NAMES: Record<string, string> = {
+  "Zone-A": "Rajajinagar Central",
+  "Zone-B": "Koramangala East",
+  "Zone-C": "Whitefield Heights",
+  "Zone-D": "Westbrook District",
+  "Zone-E": "Indiranagar South",
+  "Zone-F": "Jayanagar Block III",
+  "Zone-G": "Majestic Underground",
+  "Zone-H": "Electronic City Phase I",
+  "Zone-I": "Vijayanagar Main",
+  "Zone-J": "Hebbal Lake Ward",
+  "Zone-K": "Yeshwanthpur Industrial",
+  "Zone-L": "Basavanagudi Heritage",
+  "Zone-M": "Marathahalli Stadium",
+  "Zone-N": "HSR Layout Sector 2",
+  "Zone-O": "Banashankari Temple Rd",
+  "Zone-P": "Peenya Industrial North",
+  "Zone-Q": "Peenya Industrial South",
+  "Zone-R": "Yelahanka Surplus Belt",
+  "Zone-S": "Domlur Inner Ring",
+  "Zone-T": "Malleshwaram Circle",
+};
+
+export function generateZones(): Zone[] {
+  const zoneIds = Object.keys(ZONE_NAMES);
+
+  const baselines: Record<string, number> = {
+    "Zone-A": 320, "Zone-B": 280, "Zone-C": 220, "Zone-D": 180,
+    "Zone-E": 260, "Zone-F": 200, "Zone-G": 150, "Zone-H": 340,
+    "Zone-I": 190, "Zone-J": 230, "Zone-K": 310, "Zone-L": 170,
+    "Zone-M": 250, "Zone-N": 210, "Zone-O": 185, "Zone-P": 400,
+    "Zone-Q": 380, "Zone-R": 290, "Zone-S": 165, "Zone-T": 240,
+  };
+
+  const supplies: Record<string, number> = {
+    "Zone-A": 350, "Zone-B": 300, "Zone-C": 240, "Zone-D": 140,
+    "Zone-E": 280, "Zone-F": 220, "Zone-G": 130, "Zone-H": 370,
+    "Zone-I": 210, "Zone-J": 260, "Zone-K": 340, "Zone-L": 190,
+    "Zone-M": 270, "Zone-N": 230, "Zone-O": 200, "Zone-P": 320,
+    "Zone-Q": 310, "Zone-R": 450, "Zone-S": 180, "Zone-T": 260,
+  };
+
+  const connections: Record<string, string[]> = {
+    "Zone-A": ["Zone-B", "Zone-I", "Zone-T"],
+    "Zone-B": ["Zone-A", "Zone-E", "Zone-N"],
+    "Zone-C": ["Zone-H", "Zone-M"],
+    "Zone-D": ["Zone-L", "Zone-O", "Zone-R"],
+    "Zone-E": ["Zone-B", "Zone-S"],
+    "Zone-F": ["Zone-O", "Zone-L"],
+    "Zone-G": ["Zone-A", "Zone-T"],
+    "Zone-H": ["Zone-C", "Zone-N"],
+    "Zone-I": ["Zone-A", "Zone-T"],
+    "Zone-J": ["Zone-R", "Zone-K"],
+    "Zone-K": ["Zone-J", "Zone-P"],
+    "Zone-L": ["Zone-D", "Zone-F"],
+    "Zone-M": ["Zone-C", "Zone-N"],
+    "Zone-N": ["Zone-B", "Zone-H", "Zone-M"],
+    "Zone-O": ["Zone-F", "Zone-D"],
+    "Zone-P": ["Zone-K", "Zone-Q"],
+    "Zone-Q": ["Zone-P", "Zone-R"],
+    "Zone-R": ["Zone-Q", "Zone-J", "Zone-D"],
+    "Zone-S": ["Zone-E", "Zone-B"],
+    "Zone-T": ["Zone-A", "Zone-I", "Zone-G"],
+  };
+
+  // Coordinates cluster around a fictional Indian city (~12.95°N, 77.6°E)
+  const coords: Record<string, [number, number]> = {
+    "Zone-A": [12.990, 77.570], "Zone-B": [12.935, 77.620],
+    "Zone-C": [12.970, 77.750], "Zone-D": [12.960, 77.540],
+    "Zone-E": [12.975, 77.640], "Zone-F": [12.925, 77.580],
+    "Zone-G": [12.980, 77.575], "Zone-H": [12.850, 77.680],
+    "Zone-I": [12.965, 77.530], "Zone-J": [13.040, 77.600],
+    "Zone-K": [13.020, 77.560], "Zone-L": [12.940, 77.570],
+    "Zone-M": [12.955, 77.700], "Zone-N": [12.910, 77.650],
+    "Zone-O": [12.920, 77.550], "Zone-P": [13.030, 77.520],
+    "Zone-Q": [13.025, 77.530], "Zone-R": [13.050, 77.580],
+    "Zone-S": [12.960, 77.630], "Zone-T": [12.995, 77.560],
+  };
+
+  return zoneIds.map((id) => ({
+    zone_id: id,
+    zone_name: ZONE_NAMES[id],
+    lat: coords[id][0],
+    lng: coords[id][1],
+    baseline_demand_ML: baselines[id],
+    supply_capacity_ML: supplies[id],
+    connected_zones: connections[id],
+    min_operating_pressure: 1.5,
+  }));
+}
+
+// ─── Seeded PRNG for deterministic data ──────────────────────
+
+function seededRandom(seed: number): () => number {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+// ─── Time-Series Generator ──────────────────────────────────
+
+export function generateTimeSeries(zones: Zone[], days = 30): ZoneRecord[] {
+  const records: ZoneRecord[] = [];
+  const rng = seededRandom(42);
+  const startDate = new Date("2026-04-01T00:00:00Z");
+
+  for (const zone of zones) {
+    for (let day = 0; day < days; day++) {
+      // 4 readings per day (every 6 hours)
+      for (let reading = 0; reading < 4; reading++) {
+        const hour = reading * 6; // 0, 6, 12, 18
+        const timestamp = new Date(startDate);
+        timestamp.setDate(startDate.getDate() + day);
+        timestamp.setHours(hour, 0, 0, 0);
+
+        const dayOfWeek = timestamp.getDay();
+        const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+
+        // Base consumption with realistic patterns
+        let consumption = zone.baseline_demand_ML / 4; // Per reading
+        let pressure = 2.5 + rng() * 0.5; // 2.5–3.0 bar normal
+        let anomalyType: string | null = null;
+
+        // Time-of-day patterns
+        if (hour === 0) consumption *= 0.7;       // Night: -30%
+        else if (hour === 6) consumption *= 0.9;   // Early morning
+        else if (hour === 12) consumption *= 1.15;  // Peak day: +15%
+        else if (hour === 18) consumption *= 1.05;  // Evening
+
+        // Weekend adjustment
+        if (isWeekend) consumption *= 1.2;
+
+        // Seasonal trend (slight increase over month)
+        consumption *= 1 + (day / days) * 0.05;
+
+        // Normal noise
+        consumption *= 1 + (rng() - 0.5) * 0.1;
+
+        // ── Planted Anomalies ───────────────────────────
+
+        // 1. Gradual Leak (Zone-D): Day 10–17
+        if (zone.zone_id === "Zone-D" && day >= 10 && day <= 17) {
+          const rampFactor = 1 + 0.4 * (day - 10); // 1.0 → 3.8
+          consumption *= rampFactor;
+          pressure -= 0.08 * (day - 10);
+          anomalyType = "leak";
+        }
+
+        // 2. Nighttime Theft (Zone-G): 11PM–3AM, Days 5–25
+        if (zone.zone_id === "Zone-G" && day >= 5 && day <= 25 && hour === 0) {
+          consumption *= 4.0;
+          anomalyType = "theft";
+        }
+
+        // 3. Meter Fault (Zone-K): Days 12–19
+        if (zone.zone_id === "Zone-K" && day >= 12 && day <= 19) {
+          consumption *= 1 + (rng() - 0.5) * 1.5; // ±75%
+          anomalyType = "meter_fault";
+        }
+
+        // 4. Event Spike (Zone-M): Days 7–9
+        if (zone.zone_id === "Zone-M" && day >= 7 && day <= 9) {
+          consumption *= 2.8;
+          anomalyType = "event";
+        }
+
+        // 5. Multi-Zone Failure (Zone-P + Zone-Q): Day 22, first reading only
+        if ((zone.zone_id === "Zone-P" || zone.zone_id === "Zone-Q") && day === 22 && hour === 0) {
+          consumption *= 0.4; // -60%
+          pressure = 1.2;
+          anomalyType = "pipe_rupture";
+        }
+        if ((zone.zone_id === "Zone-P" || zone.zone_id === "Zone-Q") && day === 22 && hour === 6) {
+          consumption *= 0.7; // Recovering
+          pressure = 1.6;
+          anomalyType = "pipe_rupture";
+        }
+
+        records.push({
+          zone_id: zone.zone_id,
+          zone_name: zone.zone_name,
+          lat: zone.lat,
+          lng: zone.lng,
+          timestamp,
+          consumption_ML: Math.max(0, Math.round(consumption * 100) / 100),
+          baseline_ML: zone.baseline_demand_ML / 4,
+          pressure_bar: Math.max(0.5, Math.round(pressure * 100) / 100),
+          anomaly_type: anomalyType,
+        });
+      }
+    }
+  }
+
+  return records;
+}
+
+// ─── Latest Zone Summary ─────────────────────────────────────
+
+export interface ZoneSummary {
+  zone_id: string;
+  zone_name: string;
+  lat: number;
+  lng: number;
+  current_consumption_ML: number;
+  baseline_ML: number;
+  pressure_bar: number;
+  supply_capacity_ML: number;
+  fulfillment_pct: number;
+  anomaly_score: number;
+  severity: "Normal" | "Suspicious" | "Probable" | "Critical";
+  anomaly_type: string | null;
+  reason: string;
+  factors: string[];
+}
+
+export function getLatestZoneSummaries(zones: Zone[], records: ZoneRecord[]): ZoneSummary[] {
+  return zones.map((zone) => {
+    const zoneRecords = records.filter((r) => r.zone_id === zone.zone_id);
+    const last7Days = zoneRecords.slice(-28); // Last 7 days × 4 readings
+    const lastReading = zoneRecords[zoneRecords.length - 1];
+
+    // Compute stats
+    const consumptions = last7Days.map((r) => r.consumption_ML);
+    const mean = consumptions.reduce((a, b) => a + b, 0) / consumptions.length;
+    const std = Math.sqrt(
+      consumptions.reduce((sum, c) => sum + (c - mean) ** 2, 0) / consumptions.length
+    );
+
+    // Daily total (sum last 4 readings)
+    const dailyTotal = zoneRecords.slice(-4).reduce((s, r) => s + r.consumption_ML, 0);
+    const fulfillment = Math.min(zone.supply_capacity_ML / Math.max(dailyTotal, 1), 1.0);
+
+    // Check for anomalies in recent data
+    const recentAnomalies = zoneRecords.slice(-20).filter((r) => r.anomaly_type);
+    const hasAnomaly = recentAnomalies.length > 0;
+    const anomalyType = hasAnomaly ? recentAnomalies[recentAnomalies.length - 1].anomaly_type : null;
+
+    // Compute anomaly score based on z-score analysis
+    let anomalyScore = 0;
+    let severity: ZoneSummary["severity"] = "Normal";
+    let reason = "Consumption within normal parameters";
+    let factors: string[] = [];
+
+    if (hasAnomaly && anomalyType) {
+      const peakConsumption = Math.max(...consumptions);
+      const baseline = zone.baseline_demand_ML / 4;
+      const ratio = peakConsumption / baseline;
+      const zscore = std > 0 ? (peakConsumption - mean) / std : 0;
+
+      switch (anomalyType) {
+        case "leak":
+          anomalyScore = 0.87;
+          severity = "Probable";
+          reason = `Consumption ${ratio.toFixed(1)}x normal over 7 days — probable leak`;
+          factors = ["Slow Ramp", "Elevated Baseline", "Pressure Drop"];
+          break;
+        case "theft":
+          anomalyScore = 0.72;
+          severity = "Probable";
+          reason = `Unusual nighttime spikes (11 PM-3 AM): ${Math.round((ratio - 1) * 100)}% above baseline`;
+          factors = ["Nighttime Spike", "Regular Pattern", "Daytime Normal"];
+          break;
+        case "meter_fault":
+          anomalyScore = 0.55;
+          severity = "Suspicious";
+          reason = `Erratic readings with +/-75% variance — possible meter fault`;
+          factors = ["High Variance", "No Pattern", "Random Jumps"];
+          break;
+        case "event":
+          anomalyScore = 0.65;
+          severity = "Suspicious";
+          reason = `Consumption ${ratio.toFixed(1)}x normal for 3 days — likely planned event`;
+          factors = ["Sharp Spike", "Bounded Duration", "Clean Recovery"];
+          break;
+        case "pipe_rupture":
+          anomalyScore = 0.92;
+          severity = "Critical";
+          reason = `Simultaneous supply drop (-60%) — suspected pipe rupture`;
+          factors = ["Multi-Zone", "Sudden Drop", "Pressure Loss"];
+          break;
+        default:
+          if (zscore > 3) {
+            anomalyScore = 0.6;
+            severity = "Suspicious";
+            reason = `Z-score ${zscore.toFixed(1)} detected in recent readings`;
+            factors = ["Statistical Outlier"];
+          }
+      }
+    }
+
+    return {
+      zone_id: zone.zone_id,
+      zone_name: zone.zone_name,
+      lat: zone.lat,
+      lng: zone.lng,
+      current_consumption_ML: dailyTotal,
+      baseline_ML: zone.baseline_demand_ML,
+      pressure_bar: lastReading?.pressure_bar ?? 2.5,
+      supply_capacity_ML: zone.supply_capacity_ML,
+      fulfillment_pct: Math.round(fulfillment * 100),
+      anomaly_score: anomalyScore,
+      severity,
+      anomaly_type: anomalyType ?? null,
+      reason,
+      factors,
+    };
+  });
+}
+
+// ─── Consumption History for Charts ──────────────────────────
+
+export interface DailyConsumption {
+  date: string;
+  day: number;
+  consumption: number;
+  baseline: number;
+  isAnomaly: boolean;
+}
+
+export function getZoneHistory(zoneId: string, records: ZoneRecord[]): DailyConsumption[] {
+  const zoneRecords = records.filter((r) => r.zone_id === zoneId);
+  const dailyMap = new Map<string, { total: number; baseline: number; hasAnomaly: boolean }>();
+
+  for (const rec of zoneRecords) {
+    const dateKey = rec.timestamp.toISOString().slice(0, 10);
+    const entry = dailyMap.get(dateKey) ?? { total: 0, baseline: 0, hasAnomaly: false };
+    entry.total += rec.consumption_ML;
+    entry.baseline += rec.baseline_ML;
+    if (rec.anomaly_type) entry.hasAnomaly = true;
+    dailyMap.set(dateKey, entry);
+  }
+
+  let dayIndex = 1;
+  return Array.from(dailyMap.entries()).map(([date, data]) => ({
+    date,
+    day: dayIndex++,
+    consumption: Math.round(data.total * 100) / 100,
+    baseline: Math.round(data.baseline * 100) / 100,
+    isAnomaly: data.hasAnomaly,
+  }));
+}
