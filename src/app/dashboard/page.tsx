@@ -1,17 +1,17 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
  Drop, Warning, Gauge, Robot, BellRinging,
  ArrowsClockwise, Shuffle, Lightning, CheckCircle, ArrowRight,
  Scales,
 } from '@phosphor-icons/react';
-import { ZoneHeatmap, type NetworkConnection } from '@/components/map/ZoneHeatmap';
+import { ZoneHeatmap, type NetworkConnection, type ActiveTransfer } from '@/components/map/ZoneHeatmap';
 import { aStar, primsMST, type GraphNode } from '@/lib/graph-algorithms';
 import type { ZoneSummary } from '@/lib/synthetic-data';
 import { ActionButtons } from '@/components/dashboard/ActionButtons';
-import { AnomalyFeed } from '@/components/dashboard/AnomalyFeed';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -86,6 +86,7 @@ interface ZoneDetailPanelProps {
 }
 
 function ZoneDetailPanel({ zone, onClose, onAction }: ZoneDetailPanelProps) {
+ const router = useRouter();
  const [actionLogged, setActionLogged] = useState<string | null>(null);
  const [sustainability, setSustainability] = useState<any>(null);
  const [quality, setQuality] = useState<any>(null);
@@ -113,7 +114,11 @@ function ZoneDetailPanel({ zone, onClose, onAction }: ZoneDetailPanelProps) {
    body: JSON.stringify({ operator_id: 'ramesh_op', action, record_type: 'anomaly', record_id: zone.zone_id }),
   });
   setActionLogged(action);
-  onAction(action, zone.zone_name);
+  onAction(action, zone.zone_id);
+ };
+
+ const handleInvestigate = () => {
+  router.push(`/redistribution?zone=${zone.zone_id}`);
  };
 
  return (
@@ -214,7 +219,7 @@ function ZoneDetailPanel({ zone, onClose, onAction }: ZoneDetailPanelProps) {
       <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">✓ {actionLogged} logged</p>
      ) : (
       <div className="flex gap-2">
-       <button onClick={() => handleActionClick('Investigate')} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-xl transition-colors tracking-wide uppercase">Investigate</button>
+       <button onClick={handleInvestigate} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-1.5 rounded-xl transition-colors tracking-wide uppercase">Investigate →</button>
        <button onClick={() => handleActionClick('Acknowledge')} className="flex-1 text-xs border border-slate-200 text-slate-600 font-bold py-1.5 rounded-xl hover:bg-slate-50 transition-colors tracking-wide uppercase">Acknowledge</button>
       </div>
      )}
@@ -227,11 +232,13 @@ function ZoneDetailPanel({ zone, onClose, onAction }: ZoneDetailPanelProps) {
 // ─── Main Dashboard ───────────────────────────────────────────
 
 export default function Dashboard() {
+ const router = useRouter();
  const [zones, setZones] = useState<ZoneSummary[]>([]);
  const [connections, setConnections] = useState<NetworkConnection[]>([]);
  const [criticalCount, setCriticalCount] = useState(0);
  const [deficitCount, setDeficitCount] = useState(0);
  const [selectedZoneId, setSelectedZoneId] = useState<string | null>(null);
+ const [activeTransfers, setActiveTransfers] = useState<ActiveTransfer[]>([]);
 
  // Network / routing state
  const [mode, setMode] = useState<AppMode>('normal');
@@ -249,7 +256,7 @@ export default function Dashboard() {
  const [aiError, setAiError] = useState<string | null>(null);
  const [liveMode, setLiveMode] = useState(false);
  const [liveSeconds, setLiveSeconds] = useState(0);
- const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'redistribution' | 'ai'>('map');
+ const [activeTab, setActiveTab] = useState<'map' | 'redistribution'>('map');
 
  const addAlert = useCallback((msg: string, type: Alert['type'] = 'info') => {
   setAlerts(prev => [
@@ -267,6 +274,12 @@ export default function Dashboard() {
   setConnections(anomRes.network_connections ?? []);
   setCriticalCount(anomRes.critical_count ?? 0);
   setDeficitCount(redisRes.deficit_count ?? 0);
+  // Derive live transfer flows from top safe proposals
+  const transfers: ActiveTransfer[] = (redisRes.proposals ?? [])
+   .filter((p: any) => p.feasibility === 'safe')
+   .slice(0, 5)
+   .map((p: any) => ({ source_id: p.source_zone, dest_id: p.dest_zone, volume_ML: p.volume_ML }));
+  setActiveTransfers(transfers);
  }, []);
 
  const fetchAiAdvice = useCallback(async (
@@ -410,6 +423,7 @@ export default function Dashboard() {
   setMode('disaster');
   addAlert(`🚨 PIPE BURST simulated at ${target.zone_name}! Pressure dropping.`, 'critical');
   fetchAiAdvice(zones, newBurstIds, deficitCount, avgPressure, 'disaster');
+  setSelectedZoneId(target.zone_id);
  }, [zones, burstZoneIds, deficitCount, avgPressure, addAlert, fetchAiAdvice]);
 
  const handleClearDisaster = useCallback(() => {
@@ -427,6 +441,7 @@ export default function Dashboard() {
   if (data.success) {
    addAlert(`💧 Leak injected at ${data.zone_name} — refreshing data...`, 'warn');
    await fetchData();
+   setSelectedZoneId(data.zone_id);
   } else {
    addAlert(data.message ?? 'Inject leak failed.', 'warn');
   }
@@ -580,6 +595,7 @@ export default function Dashboard() {
          routingMode={routingMode}
          routeSelection={routeSelection}
          onRouteNodeClick={handleRouteNodeClick}
+         activeTransfers={activeTransfers}
         />
        </div>
       </section>
@@ -618,26 +634,7 @@ export default function Dashboard() {
         )}
        </AnimatePresence>
 
-       {/* Anomaly Feed */}
-       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-        <div className="flex items-center justify-between mb-3">
-         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
-          <Warning size={15} weight="duotone" className="text-red-500" />Anomaly Feed
-         </h2>
-         <button onClick={fetchData} className="text-[10px] flex items-center gap-1 font-bold tracking-wider uppercase text-slate-500 hover:text-black transition-colors">
-          <ArrowsClockwise size={11} />Refresh
-         </button>
-        </div>
-        <div className="max-h-60 overflow-y-auto">
-         <AnomalyFeed
-          zones={zones}
-          onSelectZone={id => { setSelectedZoneId(id); }}
-          selectedZoneId={selectedZoneId}
-         />
-        </div>
-       </div>
 
-       {/* AI Advisor */}
        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
          <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">

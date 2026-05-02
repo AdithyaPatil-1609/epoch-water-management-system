@@ -1,5 +1,6 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
  ArrowRight,
@@ -175,9 +176,9 @@ function ProposalCard({
  <div className="p-4">
  <div className="flex items-center justify-between mb-3">
  <div className="flex items-center gap-3 font-semibold text-slate-900">
- <span className="text-sm">{proposal.source_name}</span>
+ <span className="text-sm font-mono font-bold">{proposal.source_zone}</span>
  <ArrowRight size={14} className="text-slate-900 shrink-0" />
- <span className="text-sm">{proposal.dest_name}</span>
+ <span className="text-sm font-mono font-bold">{proposal.dest_zone}</span>
  </div>
  <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full border uppercase tracking-wider ${feasibilityStyle}`}>
  {proposal.feasibility}
@@ -327,6 +328,10 @@ function ProposalCard({
 // ─── Main Page ────────────────────────────────────────────────
 
 export default function RedistributionPage() {
+ const searchParams = useSearchParams();
+ const investigateZone = searchParams.get('zone'); // e.g. "Zone-A"
+ const investigateRef = useRef<HTMLDivElement>(null);
+
  const [fairnessWeight, setFairnessWeight] = useState(0.7);
  const [data, setData] = useState<ApiResponse | null>(null);
  const [loading, setLoading] = useState(true);
@@ -340,6 +345,13 @@ export default function RedistributionPage() {
  }, []);
 
  useEffect(() => { fetchProposals(fairnessWeight); }, []);
+
+ // Scroll to investigate section after data loads
+ useEffect(() => {
+  if (investigateZone && investigateRef.current && data) {
+   setTimeout(() => investigateRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
+  }
+ }, [investigateZone, data]);
 
  const handleApprove = async (prop: EnrichedProposal) => {
  await fetch('/api/decisions', {
@@ -385,6 +397,14 @@ export default function RedistributionPage() {
 
  const safeCount = data.proposals.filter(p => p.feasibility === 'safe').length;
 
+ // Proposals involving the investigated zone (pinned to top)
+ const zoneProposals = investigateZone
+  ? data.proposals.filter(p => p.source_zone === investigateZone || p.dest_zone === investigateZone)
+  : [];
+ const otherProposals = investigateZone
+  ? data.proposals.filter(p => p.source_zone !== investigateZone && p.dest_zone !== investigateZone)
+  : data.proposals;
+
  return (
  <div className="flex flex-col min-h-[100dvh] bg-[#f9fafb]">
  {/* Page header */}
@@ -393,6 +413,11 @@ export default function RedistributionPage() {
  <div className="flex items-center gap-3">
  <Drop size={20} weight="duotone" className="text-emerald-600" />
  <h1 className="text-xl font-medium tracking-tight text-slate-900">Fairness Optimization</h1>
+   {investigateZone && (
+    <span className="flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-200">
+     🔍 Investigating {investigateZone}
+    </span>
+   )}
  {data.deficit_count > 0 && (
  <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-orange-100 text-orange-800">
  {data.deficit_count} Deficit Zone{data.deficit_count !== 1 ? 's' : ''}
@@ -501,7 +526,26 @@ export default function RedistributionPage() {
  )}
  </h2>
 
- {data.proposals.length === 0 ? (
+    {/* Investigated zone proposals pinned at top */}
+    {investigateZone && zoneProposals.length > 0 && (
+     <div ref={investigateRef} className="mb-5">
+      <div className="flex items-center gap-2 mb-3 px-3 py-2 bg-amber-50 border border-amber-200 rounded-xl">
+       <Warning size={15} weight="fill" className="text-amber-600" />
+       <span className="text-xs font-bold text-amber-800 uppercase tracking-wider">
+        Active redistributions involving {investigateZone}
+       </span>
+      </div>
+      <div className="space-y-3 border-l-4 border-amber-400 pl-3">
+       <AnimatePresence mode="popLayout">
+        {zoneProposals.map(p => (
+         <ProposalCard key={p.proposal_id} proposal={p} onApprove={handleApprove} onReject={handleReject} />
+        ))}
+       </AnimatePresence>
+      </div>
+     </div>
+    )}
+
+    {otherProposals.length === 0 && zoneProposals.length === 0 ? (
  <div className="flex items-center gap-2 text-sm text-emerald-700 bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-3">
  <CheckCircle size={16} weight="fill" />
  No active proposals. All zones are balanced.
@@ -509,7 +553,7 @@ export default function RedistributionPage() {
  ) : (
  <AnimatePresence mode="popLayout">
  <div className="space-y-4">
- {data.proposals.map(p => (
+ {otherProposals.map(p => (
  <ProposalCard
  key={p.proposal_id}
  proposal={p}
