@@ -248,6 +248,9 @@ export default function Dashboard() {
  const [liveMode, setLiveMode] = useState(false);
  const [liveSeconds, setLiveSeconds] = useState(0);
  const [activeTab, setActiveTab] = useState<'map' | 'analytics' | 'redistribution' | 'ai'>('map');
+ const [fairnessWeight, setFairnessWeight] = useState(0.5);
+ const [pressureWeight, setPressureWeight] = useState(0.3);
+ const [emergencyWeight, setEmergencyWeight] = useState(0.2);
 
  const addAlert = useCallback((msg: string, type: Alert['type'] = 'info') => {
   setAlerts(prev => [
@@ -346,13 +349,26 @@ export default function Dashboard() {
  const mstCoverage = zones.length ? Math.round(((computedMST.length + 1) / zones.length) * 100) : 0;
  const pressureStatus = parseFloat(avgPressure) >= 2.5 ? 'Normal' : parseFloat(avgPressure) >= 1.5 ? 'Low' : 'Critical';
 
- // Add multi-tier advanced analytics variables
- const totalConsumption = zones.reduce((sum, z) => sum + (z.current_consumption_ML ?? 0), 0);
- const initialAvailable = zones.reduce((sum, z) => sum + (z.supply_capacity_ML ?? 0), 0);
- const totalAvailable = Math.max(initialAvailable, totalConsumption * 1.15);
- const nrw = totalAvailable > 0 ? ((totalAvailable - totalConsumption) / totalAvailable * 100).toFixed(1) : "12.5";
- const waterLossLitres = Math.max(0, (totalAvailable - totalConsumption) * 1000000).toFixed(0);
- const revenueLoss = Math.max(0, parseFloat(waterLossLitres) * 0.04).toFixed(0);
+  // Add multi-tier advanced analytics variables
+  const totalConsumption = zones.reduce((sum, z) => sum + (z.current_consumption_ML ?? 0), 0);
+  const initialAvailable = zones.reduce((sum, z) => sum + (z.supply_capacity_ML ?? 0), 0);
+  const totalAvailable = Math.max(initialAvailable, totalConsumption * 1.15);
+  
+  const burstVolumeML = zones
+   .filter(z => burstZoneIds.includes(z.zone_id))
+   .reduce((sum, z) => sum + (z.supply_capacity_ML ?? 10) * 0.45, 0);
+
+  const anomalyVolumeML = zones
+   .filter(z => z.severity === 'Critical')
+   .reduce((sum, z) => sum + (z.supply_capacity_ML ?? 10) * 0.25, 0);
+
+  const baseLossML = Math.max(0, totalAvailable - totalConsumption);
+  const totalLossML = baseLossML + burstVolumeML + anomalyVolumeML;
+
+  const nrw = totalAvailable > 0 ? (totalLossML / (totalAvailable + burstVolumeML + anomalyVolumeML) * 100).toFixed(1) : "12.5";
+  const waterLossLitres = Math.max(0, totalLossML * 1000000).toFixed(0);
+  const revenueLoss = Math.max(0, parseFloat(waterLossLitres) * 0.04).toFixed(0);
+
 
  const giniBefore = 0.32;
  const giniAfter = 0.18;
@@ -475,6 +491,79 @@ export default function Dashboard() {
       {t.label}
      </button>
     ))}
+   </div>
+
+   {/* ── Policy Mode Configuration Sliders ── */}
+   <div className="px-6 pt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+    <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-2 flex flex-col justify-center shadow-sm hover:shadow transition-all">
+     <div className="flex justify-between items-center mb-1">
+      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Fairness Weight</span>
+      <span className="text-xs font-mono font-black text-emerald-600">{(fairnessWeight * 100).toFixed(0)}%</span>
+     </div>
+     <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      value={fairnessWeight}
+      onChange={async e => {
+       const val = parseFloat(e.target.value);
+       setFairnessWeight(val);
+       await fetch('/api/policy/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fairnessWeight: val }),
+       });
+      }}
+      className="w-full accent-emerald-600 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+     />
+    </div>
+    <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-2 flex flex-col justify-center shadow-sm hover:shadow transition-all">
+     <div className="flex justify-between items-center mb-1">
+      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pressure Weight</span>
+      <span className="text-xs font-mono font-black text-blue-600">{(pressureWeight * 100).toFixed(0)}%</span>
+     </div>
+     <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      value={pressureWeight}
+      onChange={async e => {
+       const val = parseFloat(e.target.value);
+       setPressureWeight(val);
+       await fetch('/api/policy/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pressureWeight: val }),
+       });
+      }}
+      className="w-full accent-blue-600 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+     />
+    </div>
+    <div className="bg-white border border-slate-200/80 rounded-xl px-4 py-2 flex flex-col justify-center shadow-sm hover:shadow transition-all">
+     <div className="flex justify-between items-center mb-1">
+      <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Emergency Priority Weight</span>
+      <span className="text-xs font-mono font-black text-red-600">{(emergencyWeight * 100).toFixed(0)}%</span>
+     </div>
+     <input
+      type="range"
+      min="0"
+      max="1"
+      step="0.05"
+      value={emergencyWeight}
+      onChange={async e => {
+       const val = parseFloat(e.target.value);
+       setEmergencyWeight(val);
+       await fetch('/api/policy/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emergencyPriorityWeight: val }),
+       });
+      }}
+      className="w-full accent-red-600 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
+     />
+    </div>
    </div>
 
    {/* ── Main content ── */}
