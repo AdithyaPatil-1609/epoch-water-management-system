@@ -4,6 +4,7 @@
  */
 
 import type { Zone, ZoneSummary } from "./synthetic-data";
+export type { Zone, ZoneSummary };
 
 // ─── Internal Engine Zone (flat representation) ───────────────
 
@@ -55,6 +56,8 @@ export interface RedistributionResult {
  surplus_count: number;
 }
 
+export type RedistributionProposal = EngineProposal;
+
 // ─── Mapper: existing Zone+ZoneSummary → EngineZone ──────────
 
 function toEngineZone(zone: Zone, summary: ZoneSummary): EngineZone {
@@ -72,9 +75,6 @@ function toEngineZone(zone: Zone, summary: ZoneSummary): EngineZone {
 /**
  * Step 1: Compute demand fulfillment and fairness baseline
  */
-export function computeFairnessMetrics(zones: Zone[]): FairnessMetrics {
-  const fulfillments = zones.map(z => z.current_supply / z.demand);
-
 export function computeFairnessMetrics(zones: EngineZone[]): FairnessMetrics {
  const fulfillments = zones.map(z => Math.min(z.current_supply / z.demand, 1.5));
  const sortedFulfillments = [...fulfillments].sort((a, b) => a - b);
@@ -115,24 +115,6 @@ function classifyEngineZones(zones: EngineZone[]): { deficit: EngineZone[]; surp
  surplus.sort((a, b) => (b.current_supply / b.demand) - (a.current_supply / a.demand));
 
  return { deficit, surplus };
-}
-
-/**
- * Step 3: Simulate pressure impact of a transfer
- * Uses simplified hydraulic model: pressure drops ~0.01 bar per 100m of pipe
- * For demo, we use network distance as proxy via adjacency depth
- */
-function simulatePressureImpact(
-  source: Zone,
-  dest: Zone,
-  volume: number,
-  zones_map: Map<string, Zone>,
-  network_distance: number
-): number {
-  // Simplified: pressure loss scales with volume and distance
-  const base_loss = (volume / source.current_supply) * 0.1; // 10% loss per unit transferred
-  const distance_factor = network_distance * 0.05; // Distance multiplier
-  return -(base_loss + distance_factor);
 }
 
 /**
@@ -257,19 +239,6 @@ function rankProposals(proposals: EngineProposal[], fairnessPriority: number): E
  * Step 7: Select non-conflicting proposals (greedy selection)
  * Once a zone transfers/receives, don't include it in further transfers
  */
-function selectNonConflictingProposals(
-  ranked: RedistributionProposal[],
-  max_proposals: number = 5
-): RedistributionProposal[] {
-  const selected: RedistributionProposal[] = [];
-  const used_zones = new Set<string>();
-
-  for (const proposal of ranked) {
-    // Skip if source or destination already involved
-    if (used_zones.has(proposal.source_zone) || used_zones.has(proposal.dest_zone)) {
-      continue;
-    }
-
 function selectNonConflicting(ranked: EngineProposal[], maxProposals = 5): EngineProposal[] {
  const selected: EngineProposal[] = [];
  const usedZones = new Set<string>();

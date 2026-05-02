@@ -7,6 +7,7 @@ import { generateZones, generateTimeSeries, getLatestZoneSummaries, getZoneHisto
 let _zones: Zone[] | null = null;
 let _records: ZoneRecord[] | null = null;
 let _summaries: ZoneSummary[] | null = null;
+let _demoActive = false;
 
 export function getZones(): Zone[] {
  if (!_zones) _zones = generateZones();
@@ -27,6 +28,41 @@ export function resetCache() {
  _zones = null;
  _records = null;
  _summaries = null;
+ _demoActive = false;
+}
+
+/**
+ * Inject demo summaries directly into the cache (overrides generated data).
+ * Zone supply overrides are applied to the zone objects as well.
+ */
+export function setDemoSummaries(
+ overrides: Partial<ZoneSummary>[],
+ zoneOverrides: Array<{ zone_id: string; supply_capacity_ML?: number }> = []
+): void {
+ // Ensure base data is generated
+ const zones = getZones();
+ const summaries = getSummaries();
+
+ // Apply zone supply capacity overrides
+ for (const zo of zoneOverrides) {
+ const zone = zones.find(z => z.zone_id === zo.zone_id);
+ if (zone && zo.supply_capacity_ML !== undefined) {
+ zone.supply_capacity_ML = zo.supply_capacity_ML;
+ }
+ }
+
+ // Rebuild summaries with overrides merged in
+ _summaries = summaries.map(s => {
+ const override = overrides.find(o => o.zone_id === s.zone_id);
+ if (!override) return s;
+ return { ...s, ...override };
+ });
+
+ _demoActive = true;
+}
+
+export function isDemoActive(): boolean {
+ return _demoActive;
 }
 
 export function getHistory(zoneId: string): DailyConsumption[] {

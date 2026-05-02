@@ -18,11 +18,16 @@ import { GiniGauge } from '@/components/charts/GiniGauge';
 import { FairnessChip } from '@/components/dashboard/FairnessCard';
 import type { FairnessMetrics, RedistributionProposal } from '@/lib/redistribution-engine';
 import type { ProposalFairness } from '@/lib/fairness-engine';
+import { FairnessImprovement } from '@/components/redistribution/FairnessImprovement';
 
 // ─── Types ───────────────────────────────────────────────────
 
-interface EnrichedProposal extends EngineProposal {
+interface EnrichedProposal extends RedistributionProposal {
  fairness?: ProposalFairness | null;
+ pressure_after_bar?: number;
+ pressure_before_bar?: number;
+ pressure_safe?: boolean;
+ constraint_violated?: string | null;
 }
 
 interface ApiResponse {
@@ -200,6 +205,33 @@ function ProposalCard({
  {(proposal.fairness_gain * 100).toFixed(1)}%
  </p>
  </div>
+ </div>
+
+ {/* Pressure Gauge */}
+ <div className="mb-3">
+ <div className="flex items-center justify-between mb-1">
+ <p className="text-[10px] font-medium text-slate-800 uppercase tracking-wider">Pressure After Transfer</p>
+ <span className={`text-xs font-mono font-semibold ${
+ (proposal.pressure_after_bar ?? 2) >= 2.0 ? 'text-emerald-600'
+ : (proposal.pressure_after_bar ?? 2) >= 1.5 ? 'text-yellow-600'
+ : 'text-red-600'
+ }`}>
+ {(proposal.pressure_after_bar ?? proposal.pressure_impact + 2.5).toFixed(1)} bar
+ </span>
+ </div>
+ <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+ <div
+ style={{ width: `${Math.min(((proposal.pressure_after_bar ?? 2) / 4) * 100, 100)}%` }}
+ className={`h-full rounded-full transition-all ${
+ (proposal.pressure_after_bar ?? 2) >= 2.0 ? 'bg-emerald-500'
+ : (proposal.pressure_after_bar ?? 2) >= 1.5 ? 'bg-yellow-400'
+ : 'bg-red-500'
+ }`}
+ />
+ </div>
+ {proposal.pressure_safe === false && (
+ <p className="text-red-600 text-[10px] mt-1 font-medium">⚠ Below safe minimum (1.5 bar)</p>
+ )}
  </div>
 
  {/* Reason */}
@@ -412,6 +444,14 @@ export default function RedistributionPage() {
  baseline={data.baseline_fairness}
  projected={data.projected_fairness}
  improvementPct={data.gini_improvement_percent}
+ />
+ )}
+
+ {/* Fairness Improvement Badge */}
+ {data.baseline_fairness && data.projected_fairness && data.gini_improvement_percent > 0 && (
+ <FairnessImprovement
+ before={data.baseline_fairness.gini_coefficient}
+ after={data.projected_fairness.gini_coefficient}
  />
  )}
 
