@@ -3,13 +3,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
- Drop, Warning, Gauge, Broadcast, Robot, BellRinging,
+ Drop, Warning, Gauge, Robot, BellRinging,
  ArrowsClockwise, Shuffle, Lightning, CheckCircle, ArrowRight,
- Scales, ChartLine
+ Scales,
 } from '@phosphor-icons/react';
 import { ZoneHeatmap, type NetworkConnection } from '@/components/map/ZoneHeatmap';
 import { aStar, primsMST, type GraphNode } from '@/lib/graph-algorithms';
 import type { ZoneSummary } from '@/lib/synthetic-data';
+import { ActionButtons } from '@/components/dashboard/ActionButtons';
+import { AnomalyFeed } from '@/components/dashboard/AnomalyFeed';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -435,6 +437,22 @@ export default function Dashboard() {
   fetchAiAdvice(zones, [], deficitCount, avgPressure, 'normal');
  }, [zones, deficitCount, avgPressure, addAlert, fetchAiAdvice]);
 
+ const handleInjectLeak = useCallback(async () => {
+  const res = await fetch('/api/inject-leak', { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+   addAlert(`💧 Leak injected at ${data.zone_name} — refreshing data...`, 'warn');
+   await fetchData();
+  } else {
+   addAlert(data.message ?? 'Inject leak failed.', 'warn');
+  }
+ }, [fetchData, addAlert]);
+
+ const handleDismissAll = useCallback(() => {
+  setAlerts([]);
+  addAlert('✓ All alerts dismissed.', 'info');
+ }, [addAlert]);
+
  const handleToggleRouting = useCallback(() => {
   setRoutingMode(prev => !prev);
   setRoutePath([]);
@@ -471,13 +489,10 @@ export default function Dashboard() {
     <StatCard label="Decision Quality" value="High" sub="Optimal" color="text-emerald-600" />
    </div>
 
-   {/* ── View Selection Tabs ── */}
    <div className="px-6 pt-4 flex flex-wrap gap-2.5">
     {[
      { id: 'map', label: '🗺️ Map & Control' },
-     { id: 'analytics', label: '📊 Advanced Analytics' },
      { id: 'redistribution', label: '🔀 Redistribution Impact' },
-     { id: 'ai', label: '🧠 AI Insight Panel' },
     ].map(t => (
      <button
       key={t.id}
@@ -573,45 +588,49 @@ export default function Dashboard() {
       {/* Map column */}
       <section className="col-span-12 lg:col-span-9 flex flex-col gap-3">
        {/* Map controls bar */}
-       <div className="bg-gradient-to-r from-white via-slate-50/50 to-white rounded-2xl border border-slate-200/80 px-5 py-4 flex items-center justify-between shadow-[0_2px_12px_-3px_rgba(0,0,0,0.02)] flex-wrap gap-3">
-        <div>
+       <div className="bg-gradient-to-r from-white via-slate-50/50 to-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-[0_2px_12px_-3px_rgba(0,0,0,0.02)] flex flex-col gap-3">
+        {/* Top row: brand + status + demo actions */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
          <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
            <Drop size={16} weight="duotone" className="text-emerald-600 animate-pulse" />
           </div>
           <span className="font-bold text-slate-800 text-sm tracking-tight">Water Network Control Center</span>
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${isDis ? 'bg-red-500/10 text-red-600 border-red-200/50 animate-pulse' : 'bg-emerald-500/10 text-emerald-600 border-emerald-200/50'}`}>
-           {isDis ? 'Disaster Mode' : 'Operational Mode'}
+           {isDis ? 'Disaster Mode' : 'Operational'}
           </span>
          </div>
-         <p className="text-xs text-slate-400 mt-1.5 font-medium">
-          {routingMode ? `Click two nodes to route · ${routeSelection.length === 0 ? 'Select origin' : 'Select destination'}` : 'Click a zone to inspect · Enable routing for Dijkstra'}
-         </p>
+         {/* Demo / Dismiss / Download actions */}
+         <ActionButtons onInjectLeak={handleInjectLeak} onDismissAll={handleDismissAll} />
         </div>
+        {/* Bottom row: routing and map controls */}
         <div className="flex flex-wrap items-center gap-2">
+         <p className="text-xs text-slate-400 font-medium mr-2">
+          {routingMode ? `Routing: ${routeSelection.length === 0 ? 'Select origin' : 'Select destination'}` : 'Click zone to inspect'}
+         </p>
          <button
           onClick={handleToggleMST}
-          className={`text-xs px-3 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${showMST ? 'bg-cyan-500/10 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${showMST ? 'bg-cyan-500/10 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >MST</button>
          <button
           onClick={handleToggleRouting}
-          className={`text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >
           <ArrowRight size={13} />Route
          </button>
-         <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold uppercase tracking-wider transition-all duration-300">
+         <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold uppercase tracking-wider transition-all duration-300">
           <Shuffle size={13} />Auto-Route
          </button>
          {isDis ? (
-          <button onClick={handleClearDisaster} className="text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold uppercase tracking-wider hover:bg-emerald-700 shadow-sm transition-all duration-300">
+          <button onClick={handleClearDisaster} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold uppercase tracking-wider hover:bg-emerald-700 shadow-sm transition-all duration-300">
            <CheckCircle size={13} />Restore
           </button>
          ) : (
-          <button onClick={handleSimulateBurst} className="text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold uppercase tracking-wider hover:from-red-600 hover:to-red-700 shadow-sm hover:shadow transition-all duration-300">
+          <button onClick={handleSimulateBurst} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold uppercase tracking-wider hover:from-red-600 hover:to-red-700 shadow-sm transition-all duration-300">
            <Lightning size={13} />Simulate Burst
           </button>
          )}
-         <button onClick={fetchData} className="text-xs px-2.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all duration-300">
+         <button onClick={fetchData} className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all duration-300" title="Refresh data">
           <ArrowsClockwise size={13} />
          </button>
          <button
@@ -619,9 +638,9 @@ export default function Dashboard() {
            setLiveMode(prev => !prev);
            addAlert(liveMode ? '🔴 Live Mode deactivated.' : '🔴 Live Mode activated. Auto-refresh enabled.', 'info');
           }}
-          className={`text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${liveMode ? 'bg-red-500/10 border-red-300 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${liveMode ? 'bg-red-500/10 border-red-300 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >
-          {liveMode ? '🔴 LIVE MODE ON' : '⚫ LIVE MODE OFF'}
+          {liveMode ? '🔴 LIVE' : '⚫ LIVE'}
          </button>
          <button
           onClick={async () => {
@@ -688,6 +707,25 @@ export default function Dashboard() {
         )}
        </AnimatePresence>
 
+       {/* Anomaly Feed */}
+       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <div className="flex items-center justify-between mb-3">
+         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <Warning size={15} weight="duotone" className="text-red-500" />Anomaly Feed
+         </h2>
+         <button onClick={fetchData} className="text-[10px] flex items-center gap-1 font-bold tracking-wider uppercase text-slate-500 hover:text-black transition-colors">
+          <ArrowsClockwise size={11} />Refresh
+         </button>
+        </div>
+        <div className="max-h-60 overflow-y-auto">
+         <AnomalyFeed
+          zones={zones}
+          onSelectZone={id => { setSelectedZoneId(id); }}
+          selectedZoneId={selectedZoneId}
+         />
+        </div>
+       </div>
+
        {/* AI Advisor */}
        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
@@ -721,13 +759,13 @@ export default function Dashboard() {
        </div>
 
        {/* Alert Log */}
-       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex-1">
+       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <h2 className="text-sm font-bold text-slate-800 flex items-center justify-between mb-3">
          <span className="flex items-center gap-1.5"><BellRinging size={15} weight="duotone" className="text-orange-500" />Alert Log</span>
          <span className="text-[10px] text-slate-400 font-bold tracking-wide uppercase">{alerts.length} events</span>
         </h2>
         {alerts.length === 0 ? <p className="text-xs text-slate-400 font-medium">No events yet.</p> : (
-         <div className="space-y-2 max-h-48 overflow-y-auto">
+         <div className="space-y-2 max-h-40 overflow-y-auto">
           <AnimatePresence>
            {alerts.map(alert => (
             <motion.div key={alert.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
@@ -745,133 +783,12 @@ export default function Dashboard() {
         )}
        </div>
       </aside>
-     </>
-    )}
-
-    {activeTab === 'analytics' && (
-     <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-      {/* Card 1: Fairness & Equity Analytics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-         <Scales size={20} weight="fill" className="text-emerald-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Equity & Fairness Analytics</h3>
-         <p className="text-[10px] text-slate-400">Gini coefficient optimization over time</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Before Redistribution</p>
-          <p className="text-xl font-extrabold font-mono text-slate-900">{giniBefore}</p>
-         </div>
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">After Redistribution</p>
-          <p className="text-xl font-extrabold font-mono text-emerald-600">{giniAfter}</p>
-         </div>
-        </div>
-        <div className="p-3 bg-emerald-50/40 border border-emerald-100/60 rounded-xl">
-         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fairness Gain / Average Fulfillment</p>
-         <p className="text-2xl font-black text-emerald-700 mt-0.5">+{fairnessGain}% <span className="text-xs font-semibold text-slate-500">· avg {avgFulfillment}%</span></p>
-        </div>
-        {worstZone && (
-         <div className="p-3 bg-amber-50/40 border border-amber-100/60 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Lowest fulfillment zone</p>
-          <p className="text-sm font-extrabold text-amber-700 mt-0.5">{worstZone.zone_name} <span className="font-mono">({worstZone.fulfillment_pct}%)</span></p>
-         </div>
-        )}
-       </div>
-      </div>
-
-      {/* Card 2: Anomaly Intelligence */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-red-50 rounded-xl border border-red-100">
-         <Gauge size={20} weight="fill" className="text-red-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Anomaly Intelligence</h3>
-         <p className="text-[10px] text-slate-400">Deep audit and structural categorization</p>
-        </div>
-       </div>
-       <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-         <div className="p-2 text-center bg-red-50/40 border border-red-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Critical</p>
-          <p className="text-lg font-black text-red-600">{criticalAnom}</p>
-         </div>
-         <div className="p-2 text-center bg-orange-50/40 border border-orange-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Probable</p>
-          <p className="text-lg font-black text-orange-600">{probableAnom}</p>
-         </div>
-         <div className="p-2 text-center bg-amber-50/40 border border-amber-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Suspicious</p>
-          <p className="text-lg font-black text-amber-600">{suspiciousAnom}</p>
-         </div>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl grid grid-cols-2 gap-2">
-         <div>
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Avg Anomaly Score</p>
-          <p className="text-lg font-black font-mono text-slate-900">{avgAnomScore}</p>
-         </div>
-         <div>
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Confidence Level</p>
-          <p className="text-lg font-black font-mono text-emerald-600">{detectionConfidence}%</p>
-         </div>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Anomaly Causes Breakdown</p>
-         <div className="flex gap-3 text-xs">
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span> Leak (35%)</span>
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-orange-500 rounded-full"></span> Theft (25%)</span>
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-full"></span> Meter (40%)</span>
-         </div>
-        </div>
-       </div>
-      </div>
-
-      {/* Card 3: Water Flow & Consumption Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-blue-50 rounded-xl border border-blue-100">
-         <Drop size={20} weight="fill" className="text-blue-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Water Flow & Consumption</h3>
-         <p className="text-[10px] text-slate-400">Total daily supply vs direct consumption</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl grid grid-cols-2 gap-2 text-center">
-         <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Total Supply (MLD)</p>
-          <p className="text-xl font-black font-mono text-blue-600">{totalAvailable.toFixed(1)}</p>
-         </div>
-         <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Consumption (MLD)</p>
-          <p className="text-xl font-black font-mono text-emerald-600">{totalConsumption.toFixed(1)}</p>
-         </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Peak Demand Time</p>
-          <p className="text-base font-extrabold text-slate-800 mt-0.5">07:30 - 09:15</p>
-         </div>
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Night Consumption</p>
-          <p className="text-base font-extrabold text-slate-800 mt-0.5">14.5% ratio</p>
-         </div>
-        </div>
-       </div>
-      </div>
-     </div>
+      </>
     )}
 
     {activeTab === 'redistribution' && (
      <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-      {/* Card: Optimization Tradeoffs */}
+      {/* Optimization Analytics */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
        <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -903,7 +820,7 @@ export default function Dashboard() {
        </div>
       </div>
 
-      {/* Card: Proactive Transfer Planner Summary */}
+      {/* Redistribution Intelligence Summary */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
        <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-cyan-50 rounded-xl border border-cyan-100">
@@ -934,68 +851,6 @@ export default function Dashboard() {
      </div>
     )}
 
-    {activeTab === 'ai' && (
-     <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-      {/* Card 1: AI Decision Intelligence */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300 col-span-1 md:col-span-2">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-         <Robot size={20} weight="fill" className="text-emerald-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Intelligent AI Insights</h3>
-         <p className="text-[10px] text-slate-400">Contextual detection metrics and suggested action plans</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-4 bg-emerald-50/40 border border-emerald-100 rounded-xl">
-         <p className="text-xs font-bold text-slate-700 mb-1">Plain-Language Analysis Context</p>
-         <p className="text-xs text-slate-600 leading-relaxed">
-          The network analyzer indicates that Zone-D consumption is 3.2x normal over a 5-day evaluation baseline window. This represents a highly probable burst leak or high structural night usage, requiring operational review.
-         </p>
-        </div>
-        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-xs font-bold text-slate-700 mb-1">Operational AI Suggestion</p>
-         <p className="text-xs text-slate-600 leading-relaxed">
-          Trigger a proactive flow reduction in Zone-D. Redirect approximately 15% flow from adjacent supply points (Zone-B) to balance net regional demands.
-         </p>
-        </div>
-        <div className="flex gap-2">
-         <button onClick={() => addAlert('Investigation triggered via AI advice.', 'info')} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl uppercase tracking-wider transition-all duration-300">Investigate</button>
-         <button onClick={() => addAlert('Acknowledge registered.', 'info')} className="flex-1 text-xs border border-slate-200 text-slate-700 font-bold py-2 rounded-xl uppercase tracking-wider hover:bg-slate-50 transition-all duration-300">Acknowledge</button>
-         <button onClick={() => addAlert('Mitigation fix route applied.', 'critical')} className="flex-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl uppercase tracking-wider transition-all duration-300">Apply Fix</button>
-        </div>
-       </div>
-      </div>
-
-      {/* Card 2: System Performance Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-indigo-50 rounded-xl border border-indigo-100">
-         <Lightning size={20} weight="fill" className="text-indigo-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Performance & System Health</h3>
-         <p className="text-[10px] text-slate-400">Execution performance telemetry</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Detection Time</p>
-         <p className="text-xl font-mono font-bold text-slate-900">&lt; 2.1s <span className="text-xs font-normal text-slate-500">optimal</span></p>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Redistribution Compute Time</p>
-         <p className="text-xl font-mono font-bold text-slate-900">~42ms <span className="text-xs font-normal text-slate-500">A* heuristic</span></p>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">API Roundtrip Latency</p>
-         <p className="text-xl font-mono font-bold text-emerald-600">~11ms <span className="text-xs font-normal text-slate-500">favorable</span></p>
-        </div>
-       </div>
-      </div>
-     </div>
-    )}
    </div>
   </div>
  );

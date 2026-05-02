@@ -5,15 +5,28 @@ import Link from 'next/link';
 import { motion } from 'framer-motion';
 import {
  Drop, MapTrifold, Scales, ClipboardText,
- ChartLineUp, List, X,
+ ChartLineUp, List, X, Warning, ChartBar, Robot,
 } from '@phosphor-icons/react';
 import { useState } from 'react';
 
-const navItems = [
- { href: '/dashboard', label: 'Dashboard', icon: MapTrifold },
- { href: '/redistribution', label: 'Redistribution', icon: Scales },
- { href: '/fairness', label: 'Fairness', icon: ChartLineUp },
- { href: '/audit', label: 'Audit Trail', icon: ClipboardText },
+const navGroups = [
+ {
+  label: 'Core',
+  items: [
+   { href: '/dashboard',    label: 'Dashboard',    icon: MapTrifold },
+   { href: '/redistribution', label: 'Redistribution', icon: Scales },
+   { href: '/fairness',     label: 'Fairness',     icon: ChartLineUp },
+   { href: '/audit',        label: 'Audit Trail',  icon: ClipboardText },
+  ],
+ },
+ {
+  label: 'Intelligence',
+  items: [
+   { href: '/anomalies',   label: 'Anomaly Feed', icon: Warning },
+   { href: '/analytics',   label: 'Analytics',    icon: ChartBar },
+   { href: '/ai-insights', label: 'AI Insights',  icon: Robot },
+  ],
+ },
 ];
 
 export function Sidebar() {
@@ -66,35 +79,41 @@ export function Sidebar() {
      </button>
     </div>
 
-    {/* Nav */}
     <nav className="flex-1 px-4 py-6 overflow-y-auto">
-     <div className="space-y-2">
-      {navItems.map(item => {
-       const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
-       const Icon = item.icon;
-       return (
-        <Link
-         key={item.href} href={item.href}
-         onClick={() => setMobileOpen(false)}
-         className={`relative flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
-          isActive
-           ? 'text-white'
-           : 'text-slate-400 hover:text-white hover:bg-slate-800/50 hover:shadow-sm'
-         }`}
-        >
-         {isActive && (
-          <motion.div
-           layoutId="sidebar-active"
-           className="absolute inset-0 bg-gradient-to-r from-emerald-600/30 via-emerald-500/10 to-transparent border-l-2 border-emerald-400 rounded-r-xl rounded-l-sm"
-           transition={{ type: 'spring', stiffness: 350, damping: 32 }}
-           style={{ zIndex: -1 }}
-          />
-         )}
-         <Icon size={22} weight={isActive ? 'fill' : 'regular'} className={isActive ? 'text-emerald-400' : 'text-slate-400'} />
-         {item.label}
-        </Link>
-       );
-      })}
+     <div className="space-y-6">
+      {navGroups.map(group => (
+       <div key={group.label}>
+        <p className="text-[9px] font-bold uppercase tracking-widest text-slate-600 px-4 mb-2">{group.label}</p>
+        <div className="space-y-1">
+         {group.items.map(item => {
+          const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
+          const Icon = item.icon;
+          return (
+           <Link
+            key={item.href} href={item.href}
+            onClick={() => setMobileOpen(false)}
+            className={`relative flex items-center gap-3.5 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-300 ${
+             isActive
+              ? 'text-white'
+              : 'text-slate-400 hover:text-white hover:bg-slate-800/50 hover:shadow-sm'
+            }`}
+           >
+            {isActive && (
+             <motion.div
+              layoutId="sidebar-active"
+              className="absolute inset-0 bg-gradient-to-r from-emerald-600/30 via-emerald-500/10 to-transparent border-l-2 border-emerald-400 rounded-r-xl rounded-l-sm"
+              transition={{ type: 'spring', stiffness: 350, damping: 32 }}
+              style={{ zIndex: -1 }}
+             />
+            )}
+            <Icon size={20} weight={isActive ? 'fill' : 'regular'} className={isActive ? 'text-emerald-400' : 'text-slate-400'} />
+            {item.label}
+           </Link>
+          );
+         })}
+        </div>
+       </div>
+      ))}
      </div>
     </nav>
 
