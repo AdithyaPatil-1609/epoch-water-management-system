@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #f9fafb;
+  --background: #ffffff;
   --foreground: #0f172a;
   --sidebar-width: 240px;
 }

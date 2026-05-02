@@ -51,8 +51,8 @@ const SEVERITY_BG: Record<string, string> = {
 
 function StatCard({ label, value, sub, color }: { label: string; value: string; sub: string; color: string }) {
   return (
-    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-5 py-4 shadow-sm">
-      <p className="text-xs font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-1">{label}</p>
+    <div className="bg-white border border-slate-200 rounded-xl px-5 py-4 shadow-sm">
+      <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">{label}</p>
       <p className={`text-3xl font-mono font-bold ${color}`}>{value}</p>
       <span className={`mt-2 inline-block text-xs font-semibold px-2 py-0.5 rounded-full ${
         sub === 'Normal' || sub === 'OK' || sub === 'All Clear' ? 'bg-emerald-100 text-emerald-800'
@@ -82,6 +82,9 @@ function PressureBar({ zone, pressure }: { zone: string; pressure: number }) {
   );
 }
 
+// Monotonically-increasing counter — guarantees unique alert keys
+let _alertSeq = 0;
+
 // ─── Main Dashboard ───────────────────────────────────────────
 
 export default function Dashboard() {
@@ -108,7 +111,7 @@ export default function Dashboard() {
 
   const addAlert = useCallback((msg: string, type: Alert['type'] = 'info') => {
     setAlerts(prev => [
-      { id: Date.now().toString(), time: new Date().toLocaleTimeString(), msg, type },
+      { id: `alert-${++_alertSeq}`, time: new Date().toLocaleTimeString(), msg, type },
       ...prev.slice(0, 19),
     ]);
   }, []);
@@ -273,7 +276,7 @@ export default function Dashboard() {
   const isDis = mode === 'disaster';
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-[#f9fafb]">
+    <div className="flex flex-col min-h-[100dvh] bg-white">
       {/* ── Stat cards ── */}
       <div className="w-full border-b border-slate-200 bg-white px-6 py-4 grid grid-cols-4 gap-4">
         <StatCard label="System Pressure" value={`${avgPressure} bar`} sub={pressureStatus} color={pressureStatus === 'Normal' ? 'text-emerald-700' : 'text-orange-600'} />
@@ -367,7 +370,7 @@ export default function Dashboard() {
                 return (
                   <motion.div key="zone-detail" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 20 }} className="flex flex-col gap-3">
                     {/* Header */}
-                    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden">
+                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
                       <div className={`px-4 py-3 flex items-start justify-between ${SEVERITY_BG[zone.severity] ?? 'bg-slate-50'}`}>
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">{zone.zone_id}</p>
@@ -382,22 +385,22 @@ export default function Dashboard() {
                           <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${SEVERITY_BG[zone.severity]}`}>{zone.severity}</span>
                           <span className="text-xs text-slate-400 font-mono">score {zone.anomaly_score?.toFixed(2)}</span>
                         </div>
-                        <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">{zone.reason}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed">{zone.reason}</p>
                         {zone.factors?.length > 0 && (
                           <div className="flex flex-wrap gap-1 mt-2">
-                            {zone.factors.map(f => <span key={f} className="text-[10px] px-1.5 py-0.5 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded font-medium uppercase tracking-wider">{f}</span>)}
+                            {zone.factors.map(f => <span key={f} className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-medium uppercase tracking-wider">{f}</span>)}
                           </div>
                         )}
                       </div>
                       {/* Metrics */}
-                      <div className="grid grid-cols-3 divide-x divide-slate-100 dark:divide-slate-700 border-t border-slate-100 dark:border-slate-700">
+                      <div className="grid grid-cols-3 divide-x divide-slate-100 border-t border-slate-100">
                         <div className="px-3 py-2.5 text-center">
                           <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Demand</p>
-                          <p className="text-sm font-mono font-bold text-slate-900 dark:text-white">{zone.current_consumption_ML}<span className="text-[9px] text-slate-400 ml-0.5">ML</span></p>
+                          <p className="text-sm font-mono font-bold text-slate-900">{zone.current_consumption_ML}<span className="text-[9px] text-slate-400 ml-0.5">ML</span></p>
                         </div>
                         <div className="px-3 py-2.5 text-center">
                           <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Pressure</p>
-                          <p className="text-sm font-mono font-bold text-slate-900 dark:text-white">{zone.pressure_bar?.toFixed(1)}<span className="text-[9px] text-slate-400 ml-0.5">bar</span></p>
+                          <p className="text-sm font-mono font-bold text-slate-900">{zone.pressure_bar?.toFixed(1)}<span className="text-[9px] text-slate-400 ml-0.5">bar</span></p>
                         </div>
                         <div className="px-3 py-2.5 text-center">
                           <p className="text-[9px] uppercase tracking-wider text-slate-400 mb-1">Supplied</p>
@@ -405,13 +408,13 @@ export default function Dashboard() {
                         </div>
                       </div>
                       {/* Actions */}
-                      <div className="px-4 py-3 border-t border-slate-100 dark:border-slate-700">
+                      <div className="px-4 py-3 border-t border-slate-100">
                         {actionLogged ? (
                           <p className="text-xs text-emerald-700 bg-emerald-50 rounded-lg px-3 py-2">✓ {actionLogged} logged</p>
                         ) : (
                           <div className="flex gap-2">
                             <button onClick={() => handleAction('Investigate')} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-1.5 rounded-lg transition-colors">Investigate</button>
-                            <button onClick={() => handleAction('Acknowledge')} className="flex-1 text-xs border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-semibold py-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">Acknowledge</button>
+                            <button onClick={() => handleAction('Acknowledge')} className="flex-1 text-xs border border-slate-200 text-slate-600 font-semibold py-1.5 rounded-lg hover:bg-slate-50 transition-colors">Acknowledge</button>
                           </div>
                         )}
                       </div>
@@ -422,9 +425,9 @@ export default function Dashboard() {
             ) : (
               /* ── Default: Pressure bars ── */
               <motion.div key="pressure" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+                <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
                   <div className="flex items-center justify-between mb-3">
-                    <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                       <Gauge size={15} weight="duotone" className="text-blue-600" />Zone Pressure
                     </h2>
                     <span className="text-[10px] text-slate-400 font-mono">bar</span>
@@ -440,14 +443,14 @@ export default function Dashboard() {
           </AnimatePresence>
 
           {/* AI Advisor */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
             <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+              <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                 <Robot size={15} weight="duotone" className="text-emerald-600" />AI Advisor
                 {aiLoading && <span className="w-3 h-3 border border-emerald-400 border-t-transparent rounded-full animate-spin ml-1" />}
               </h2>
               <button onClick={() => fetchAiAdvice(zones, burstZoneIds, deficitCount, avgPressure, mode)} disabled={aiLoading}
-                className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 transition-colors disabled:opacity-40">
+                className="text-[10px] flex items-center gap-1 text-slate-400 hover:text-slate-700 transition-colors disabled:opacity-40">
                 <ArrowsClockwise size={11} className={aiLoading ? 'animate-spin' : ''} />Refresh
               </button>
             </div>
@@ -457,12 +460,12 @@ export default function Dashboard() {
                 {aiError.includes('not configured') ? <><strong>API key needed.</strong> Add to <code className="bg-orange-100 px-1 rounded">.env.local</code> and restart.</> : aiError}
               </div>
             ) : aiLoading && aiAdvice.length === 0 ? (
-              <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-4 bg-slate-100 dark:bg-slate-700 rounded animate-pulse" style={{ width: `${70 + i * 5}%` }} />)}</div>
+              <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="h-4 bg-slate-100 rounded animate-pulse" style={{ width: `${70 + i * 5}%` }} />)}</div>
             ) : (
               <ol className="space-y-2">
                 {aiAdvice.map((advice, i) => (
-                  <li key={i} className="flex gap-2 text-xs text-slate-700 dark:text-slate-300">
-                    <span className="w-4 h-4 rounded-full bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-300 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
+                  <li key={i} className="flex gap-2 text-xs text-slate-700">
+                    <span className="w-4 h-4 rounded-full bg-emerald-100 text-emerald-800 text-[10px] font-bold flex items-center justify-center shrink-0 mt-0.5">{i + 1}</span>
                     <span>{advice}</span>
                   </li>
                 ))}
@@ -472,8 +475,8 @@ export default function Dashboard() {
           </div>
 
           {/* Alert Log */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm p-4 flex-1">
-            <h2 className="text-sm font-semibold text-slate-800 dark:text-slate-200 flex items-center justify-between mb-3">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex-1">
+            <h2 className="text-sm font-semibold text-slate-800 flex items-center justify-between mb-3">
               <span className="flex items-center gap-1.5"><BellRinging size={15} weight="duotone" className="text-orange-500" />Alert Log</span>
               <span className="text-[10px] text-slate-400">{alerts.length} event{alerts.length !== 1 ? 's' : ''}</span>
             </h2>
@@ -485,7 +488,7 @@ export default function Dashboard() {
                       className={`text-xs p-2 rounded-lg border ${
                         alert.type === 'critical' ? 'bg-red-50 border-red-100 text-red-800'
                         : alert.type === 'warn' ? 'bg-yellow-50 border-yellow-100 text-yellow-800'
-                        : 'bg-slate-50 dark:bg-slate-700/50 border-slate-100 dark:border-slate-600 text-slate-700 dark:text-slate-300'
+                        : 'bg-slate-50 border-slate-100 text-slate-700'
                       }`}>
                       <span className="font-mono text-[10px] text-slate-400 mr-1">{alert.time}</span>
                       {alert.msg}

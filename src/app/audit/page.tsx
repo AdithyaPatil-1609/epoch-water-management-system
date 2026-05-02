@@ -126,7 +126,7 @@ export default function AuditPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-[#f9fafb]">
+    <div className="flex flex-col min-h-[100dvh] bg-white">
       {/* Page Header */}
       <div className="w-full border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">

@@ -340,7 +340,7 @@ export default function RedistributionPage() {
 
   if (!data && loading) {
     return (
-      <div className="flex min-h-[100dvh] items-center justify-center bg-[#f9fafb]">
+      <div className="flex min-h-[100dvh] items-center justify-center bg-white">
         <div className="flex flex-col items-center gap-3 text-slate-400">
           <div className="w-8 h-8 border-2 border-slate-200 border-t-emerald-500 rounded-full animate-spin" />
           <span className="text-sm font-medium">Loading Optimization Engine…</span>
@@ -354,7 +354,7 @@ export default function RedistributionPage() {
   const safeCount = data.proposals.filter(p => p.feasibility === 'safe').length;
 
   return (
-    <div className="flex flex-col min-h-[100dvh] bg-[#f9fafb]">
+    <div className="flex flex-col min-h-[100dvh] bg-white">
       {/* Page header */}
       <div className="w-full border-b border-slate-200 bg-white">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
