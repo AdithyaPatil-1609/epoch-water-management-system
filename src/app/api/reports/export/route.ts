@@ -3,6 +3,12 @@
  * Generate XLSX export with three sheets: Anomalies, Proposals, Decisions
  */
 
+import { NextResponse } from "next/server";
+import * as XLSX from "xlsx";
+import { getSummaries, getZones } from "@/lib/data-cache";
+import { getDecisions } from "@/lib/decisions";
+import { generateFairnessTrend, interpretGini, interpretationLabel } from "@/lib/fairness-engine";
+
 export async function GET() {
  try {
  const summaries = getSummaries();

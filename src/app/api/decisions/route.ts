@@ -3,6 +3,10 @@
  * Log an operator decision on a proposal or anomaly
  */
 
+import { NextRequest, NextResponse } from "next/server";
+import { getDecisions, addDecision } from "@/lib/decisions";
+import { applyRedistribution } from "@/lib/data-cache";
+
 export async function GET() {
  const decisions = getDecisions();
  return NextResponse.json(decisions);

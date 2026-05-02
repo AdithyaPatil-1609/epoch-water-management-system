@@ -19,7 +19,7 @@ import type {
  ZoneInput,
 } from '@/lib/types/anomaly';
 import { scoreWithRules } from './fallback-rule-engine';
-import { computeFeatures, normalizeForONNX, type EngineeredFeatures } from '@/lib/feature-engineering';
+
 
 // ── Scaler shape (JSON written by Python export script) ────────
 interface ScalerParams {
