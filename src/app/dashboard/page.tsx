@@ -473,13 +473,10 @@ export default function Dashboard() {
     <StatCard label="Decision Quality" value="High" sub="Optimal" color="text-emerald-600" />
    </div>
 
-   {/* ── View Selection Tabs ── */}
    <div className="px-6 pt-4 flex flex-wrap gap-2.5">
     {[
      { id: 'map', label: '🗺️ Map & Control' },
-     { id: 'analytics', label: '📊 Advanced Analytics' },
      { id: 'redistribution', label: '🔀 Redistribution Impact' },
-     { id: 'ai', label: '🧠 AI Insight Panel' },
     ].map(t => (
      <button
       key={t.id}
@@ -697,133 +694,12 @@ export default function Dashboard() {
         )}
        </div>
       </aside>
-     </>
-    )}
-
-    {activeTab === 'analytics' && (
-     <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-      {/* Card 1: Fairness & Equity Analytics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-         <Scales size={20} weight="fill" className="text-emerald-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Equity & Fairness Analytics</h3>
-         <p className="text-[10px] text-slate-400">Gini coefficient optimization over time</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Before Redistribution</p>
-          <p className="text-xl font-extrabold font-mono text-slate-900">{giniBefore}</p>
-         </div>
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">After Redistribution</p>
-          <p className="text-xl font-extrabold font-mono text-emerald-600">{giniAfter}</p>
-         </div>
-        </div>
-        <div className="p-3 bg-emerald-50/40 border border-emerald-100/60 rounded-xl">
-         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Fairness Gain / Average Fulfillment</p>
-         <p className="text-2xl font-black text-emerald-700 mt-0.5">+{fairnessGain}% <span className="text-xs font-semibold text-slate-500">· avg {avgFulfillment}%</span></p>
-        </div>
-        {worstZone && (
-         <div className="p-3 bg-amber-50/40 border border-amber-100/60 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider">Lowest fulfillment zone</p>
-          <p className="text-sm font-extrabold text-amber-700 mt-0.5">{worstZone.zone_name} <span className="font-mono">({worstZone.fulfillment_pct}%)</span></p>
-         </div>
-        )}
-       </div>
-      </div>
-
-      {/* Card 2: Anomaly Intelligence */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-red-50 rounded-xl border border-red-100">
-         <Gauge size={20} weight="fill" className="text-red-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Anomaly Intelligence</h3>
-         <p className="text-[10px] text-slate-400">Deep audit and structural categorization</p>
-        </div>
-       </div>
-       <div className="space-y-3">
-        <div className="grid grid-cols-3 gap-2">
-         <div className="p-2 text-center bg-red-50/40 border border-red-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Critical</p>
-          <p className="text-lg font-black text-red-600">{criticalAnom}</p>
-         </div>
-         <div className="p-2 text-center bg-orange-50/40 border border-orange-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Probable</p>
-          <p className="text-lg font-black text-orange-600">{probableAnom}</p>
-         </div>
-         <div className="p-2 text-center bg-amber-50/40 border border-amber-100 rounded-xl">
-          <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-0.5">Suspicious</p>
-          <p className="text-lg font-black text-amber-600">{suspiciousAnom}</p>
-         </div>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl grid grid-cols-2 gap-2">
-         <div>
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Avg Anomaly Score</p>
-          <p className="text-lg font-black font-mono text-slate-900">{avgAnomScore}</p>
-         </div>
-         <div>
-          <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider mb-0.5">Confidence Level</p>
-          <p className="text-lg font-black font-mono text-emerald-600">{detectionConfidence}%</p>
-         </div>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1">Anomaly Causes Breakdown</p>
-         <div className="flex gap-3 text-xs">
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-red-500 rounded-full"></span> Leak (35%)</span>
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-orange-500 rounded-full"></span> Theft (25%)</span>
-          <span className="flex items-center gap-1 font-semibold text-slate-700"><span className="w-2.5 h-2.5 bg-yellow-500 rounded-full"></span> Meter (40%)</span>
-         </div>
-        </div>
-       </div>
-      </div>
-
-      {/* Card 3: Water Flow & Consumption Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-blue-50 rounded-xl border border-blue-100">
-         <Drop size={20} weight="fill" className="text-blue-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Water Flow & Consumption</h3>
-         <p className="text-[10px] text-slate-400">Total daily supply vs direct consumption</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl grid grid-cols-2 gap-2 text-center">
-         <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Total Supply (MLD)</p>
-          <p className="text-xl font-black font-mono text-blue-600">{totalAvailable.toFixed(1)}</p>
-         </div>
-         <div>
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Consumption (MLD)</p>
-          <p className="text-xl font-black font-mono text-emerald-600">{totalConsumption.toFixed(1)}</p>
-         </div>
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Peak Demand Time</p>
-          <p className="text-base font-extrabold text-slate-800 mt-0.5">07:30 - 09:15</p>
-         </div>
-         <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-          <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-0.5">Night Consumption</p>
-          <p className="text-base font-extrabold text-slate-800 mt-0.5">14.5% ratio</p>
-         </div>
-        </div>
-       </div>
-      </div>
-     </div>
+      </>
     )}
 
     {activeTab === 'redistribution' && (
      <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 gap-6 animate-fadeIn">
-      {/* Card: Optimization Tradeoffs */}
+      {/* Optimization Analytics */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
        <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-indigo-50 rounded-xl border border-indigo-100">
@@ -855,7 +731,7 @@ export default function Dashboard() {
        </div>
       </div>
 
-      {/* Card: Proactive Transfer Planner Summary */}
+      {/* Redistribution Intelligence Summary */}
       <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
        <div className="flex items-center gap-2 mb-4">
         <div className="p-2 bg-cyan-50 rounded-xl border border-cyan-100">
@@ -886,68 +762,6 @@ export default function Dashboard() {
      </div>
     )}
 
-    {activeTab === 'ai' && (
-     <div className="col-span-12 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-fadeIn">
-      {/* Card 1: AI Decision Intelligence */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300 col-span-1 md:col-span-2">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100">
-         <Robot size={20} weight="fill" className="text-emerald-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Intelligent AI Insights</h3>
-         <p className="text-[10px] text-slate-400">Contextual detection metrics and suggested action plans</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-4 bg-emerald-50/40 border border-emerald-100 rounded-xl">
-         <p className="text-xs font-bold text-slate-700 mb-1">Plain-Language Analysis Context</p>
-         <p className="text-xs text-slate-600 leading-relaxed">
-          The network analyzer indicates that Zone-D consumption is 3.2x normal over a 5-day evaluation baseline window. This represents a highly probable burst leak or high structural night usage, requiring operational review.
-         </p>
-        </div>
-        <div className="p-4 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-xs font-bold text-slate-700 mb-1">Operational AI Suggestion</p>
-         <p className="text-xs text-slate-600 leading-relaxed">
-          Trigger a proactive flow reduction in Zone-D. Redirect approximately 15% flow from adjacent supply points (Zone-B) to balance net regional demands.
-         </p>
-        </div>
-        <div className="flex gap-2">
-         <button onClick={() => addAlert('Investigation triggered via AI advice.', 'info')} className="flex-1 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-2 rounded-xl uppercase tracking-wider transition-all duration-300">Investigate</button>
-         <button onClick={() => addAlert('Acknowledge registered.', 'info')} className="flex-1 text-xs border border-slate-200 text-slate-700 font-bold py-2 rounded-xl uppercase tracking-wider hover:bg-slate-50 transition-all duration-300">Acknowledge</button>
-         <button onClick={() => addAlert('Mitigation fix route applied.', 'critical')} className="flex-1 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 rounded-xl uppercase tracking-wider transition-all duration-300">Apply Fix</button>
-        </div>
-       </div>
-      </div>
-
-      {/* Card 2: System Performance Metrics */}
-      <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-sm hover:shadow transition-all duration-300">
-       <div className="flex items-center gap-2 mb-4">
-        <div className="p-2 bg-indigo-50 rounded-xl border border-indigo-100">
-         <Lightning size={20} weight="fill" className="text-indigo-600" />
-        </div>
-        <div>
-         <h3 className="font-bold text-slate-800 text-sm">Performance & System Health</h3>
-         <p className="text-[10px] text-slate-400">Execution performance telemetry</p>
-        </div>
-       </div>
-       <div className="space-y-4">
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Detection Time</p>
-         <p className="text-xl font-mono font-bold text-slate-900">&lt; 2.1s <span className="text-xs font-normal text-slate-500">optimal</span></p>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Redistribution Compute Time</p>
-         <p className="text-xl font-mono font-bold text-slate-900">~42ms <span className="text-xs font-normal text-slate-500">A* heuristic</span></p>
-        </div>
-        <div className="p-3 bg-slate-50 border border-slate-100 rounded-xl">
-         <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">API Roundtrip Latency</p>
-         <p className="text-xl font-mono font-bold text-emerald-600">~11ms <span className="text-xs font-normal text-slate-500">favorable</span></p>
-        </div>
-       </div>
-      </div>
-     </div>
-    )}
    </div>
   </div>
  );
