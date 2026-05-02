@@ -3,13 +3,15 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
- Drop, Warning, Gauge, Broadcast, Robot, BellRinging,
+ Drop, Warning, Gauge, Robot, BellRinging,
  ArrowsClockwise, Shuffle, Lightning, CheckCircle, ArrowRight,
- Scales, ChartLine
+ Scales,
 } from '@phosphor-icons/react';
 import { ZoneHeatmap, type NetworkConnection } from '@/components/map/ZoneHeatmap';
 import { aStar, primsMST, type GraphNode } from '@/lib/graph-algorithms';
 import type { ZoneSummary } from '@/lib/synthetic-data';
+import { ActionButtons } from '@/components/dashboard/ActionButtons';
+import { AnomalyFeed } from '@/components/dashboard/AnomalyFeed';
 
 // ─── Types ────────────────────────────────────────────────────
 
@@ -419,6 +421,22 @@ export default function Dashboard() {
   fetchAiAdvice(zones, [], deficitCount, avgPressure, 'normal');
  }, [zones, deficitCount, avgPressure, addAlert, fetchAiAdvice]);
 
+ const handleInjectLeak = useCallback(async () => {
+  const res = await fetch('/api/inject-leak', { method: 'POST' });
+  const data = await res.json();
+  if (data.success) {
+   addAlert(`💧 Leak injected at ${data.zone_name} — refreshing data...`, 'warn');
+   await fetchData();
+  } else {
+   addAlert(data.message ?? 'Inject leak failed.', 'warn');
+  }
+ }, [fetchData, addAlert]);
+
+ const handleDismissAll = useCallback(() => {
+  setAlerts([]);
+  addAlert('✓ All alerts dismissed.', 'info');
+ }, [addAlert]);
+
  const handleToggleRouting = useCallback(() => {
   setRoutingMode(prev => !prev);
   setRoutePath([]);
@@ -484,45 +502,49 @@ export default function Dashboard() {
       {/* Map column */}
       <section className="col-span-12 lg:col-span-9 flex flex-col gap-3">
        {/* Map controls bar */}
-       <div className="bg-gradient-to-r from-white via-slate-50/50 to-white rounded-2xl border border-slate-200/80 px-5 py-4 flex items-center justify-between shadow-[0_2px_12px_-3px_rgba(0,0,0,0.02)] flex-wrap gap-3">
-        <div>
+       <div className="bg-gradient-to-r from-white via-slate-50/50 to-white rounded-2xl border border-slate-200/80 px-5 py-4 shadow-[0_2px_12px_-3px_rgba(0,0,0,0.02)] flex flex-col gap-3">
+        {/* Top row: brand + status + demo actions */}
+        <div className="flex items-center justify-between flex-wrap gap-3">
          <div className="flex items-center gap-2.5">
           <div className="p-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
            <Drop size={16} weight="duotone" className="text-emerald-600 animate-pulse" />
           </div>
           <span className="font-bold text-slate-800 text-sm tracking-tight">Water Network Control Center</span>
           <span className={`text-[10px] font-bold uppercase tracking-wider px-2.5 py-0.5 rounded-lg border ${isDis ? 'bg-red-500/10 text-red-600 border-red-200/50 animate-pulse' : 'bg-emerald-500/10 text-emerald-600 border-emerald-200/50'}`}>
-           {isDis ? 'Disaster Mode' : 'Operational Mode'}
+           {isDis ? 'Disaster Mode' : 'Operational'}
           </span>
          </div>
-         <p className="text-xs text-slate-400 mt-1.5 font-medium">
-          {routingMode ? `Click two nodes to route · ${routeSelection.length === 0 ? 'Select origin' : 'Select destination'}` : 'Click a zone to inspect · Enable routing for Dijkstra'}
-         </p>
+         {/* Demo / Dismiss / Download actions */}
+         <ActionButtons onInjectLeak={handleInjectLeak} onDismissAll={handleDismissAll} />
         </div>
+        {/* Bottom row: routing and map controls */}
         <div className="flex flex-wrap items-center gap-2">
+         <p className="text-xs text-slate-400 font-medium mr-2">
+          {routingMode ? `Routing: ${routeSelection.length === 0 ? 'Select origin' : 'Select destination'}` : 'Click zone to inspect'}
+         </p>
          <button
           onClick={handleToggleMST}
-          className={`text-xs px-3 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${showMST ? 'bg-cyan-500/10 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${showMST ? 'bg-cyan-500/10 border-cyan-300 text-cyan-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >MST</button>
          <button
           onClick={handleToggleRouting}
-          className={`text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${routingMode ? 'bg-indigo-50 border-indigo-300 text-indigo-700' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >
           <ArrowRight size={13} />Route
          </button>
-         <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold uppercase tracking-wider transition-all duration-300">
+         <button onClick={handleAutoRoute} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 font-bold uppercase tracking-wider transition-all duration-300">
           <Shuffle size={13} />Auto-Route
          </button>
          {isDis ? (
-          <button onClick={handleClearDisaster} className="text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 text-white font-bold uppercase tracking-wider hover:bg-emerald-700 shadow-sm transition-all duration-300">
+          <button onClick={handleClearDisaster} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 text-white font-bold uppercase tracking-wider hover:bg-emerald-700 shadow-sm transition-all duration-300">
            <CheckCircle size={13} />Restore
           </button>
          ) : (
-          <button onClick={handleSimulateBurst} className="text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold uppercase tracking-wider hover:from-red-600 hover:to-red-700 shadow-sm hover:shadow transition-all duration-300">
+          <button onClick={handleSimulateBurst} className="text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-red-500 to-red-600 text-white font-bold uppercase tracking-wider hover:from-red-600 hover:to-red-700 shadow-sm transition-all duration-300">
            <Lightning size={13} />Simulate Burst
           </button>
          )}
-         <button onClick={fetchData} className="text-xs px-2.5 py-2 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all duration-300">
+         <button onClick={fetchData} className="text-xs px-2.5 py-1.5 rounded-xl border border-slate-200 text-slate-600 hover:bg-slate-50 transition-all duration-300" title="Refresh data">
           <ArrowsClockwise size={13} />
          </button>
          <button
@@ -530,9 +552,9 @@ export default function Dashboard() {
            setLiveMode(prev => !prev);
            addAlert(liveMode ? '🔴 Live Mode deactivated.' : '🔴 Live Mode activated. Auto-refresh enabled.', 'info');
           }}
-          className={`text-xs flex items-center gap-1.5 px-3.5 py-2 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${liveMode ? 'bg-red-500/10 border-red-300 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
+          className={`text-xs flex items-center gap-1.5 px-3 py-1.5 rounded-xl border font-bold uppercase tracking-wider transition-all duration-300 ${liveMode ? 'bg-red-500/10 border-red-300 text-red-600 animate-pulse' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
          >
-          {liveMode ? '🔴 LIVE MODE ON' : '⚫ LIVE MODE OFF'}
+          {liveMode ? '🔴 LIVE' : '⚫ LIVE'}
          </button>
          <button
           onClick={async () => {
@@ -599,6 +621,25 @@ export default function Dashboard() {
         )}
        </AnimatePresence>
 
+       {/* Anomaly Feed */}
+       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
+        <div className="flex items-center justify-between mb-3">
+         <h2 className="text-sm font-bold text-slate-800 flex items-center gap-1.5">
+          <Warning size={15} weight="duotone" className="text-red-500" />Anomaly Feed
+         </h2>
+         <button onClick={fetchData} className="text-[10px] flex items-center gap-1 font-bold tracking-wider uppercase text-slate-500 hover:text-black transition-colors">
+          <ArrowsClockwise size={11} />Refresh
+         </button>
+        </div>
+        <div className="max-h-60 overflow-y-auto">
+         <AnomalyFeed
+          zones={zones}
+          onSelectZone={id => { setSelectedZoneId(id); }}
+          selectedZoneId={selectedZoneId}
+         />
+        </div>
+       </div>
+
        {/* AI Advisor */}
        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <div className="flex items-center justify-between mb-3">
@@ -632,13 +673,13 @@ export default function Dashboard() {
        </div>
 
        {/* Alert Log */}
-       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex-1">
+       <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
         <h2 className="text-sm font-bold text-slate-800 flex items-center justify-between mb-3">
          <span className="flex items-center gap-1.5"><BellRinging size={15} weight="duotone" className="text-orange-500" />Alert Log</span>
          <span className="text-[10px] text-slate-400 font-bold tracking-wide uppercase">{alerts.length} events</span>
         </h2>
         {alerts.length === 0 ? <p className="text-xs text-slate-400 font-medium">No events yet.</p> : (
-         <div className="space-y-2 max-h-48 overflow-y-auto">
+         <div className="space-y-2 max-h-40 overflow-y-auto">
           <AnimatePresence>
            {alerts.map(alert => (
             <motion.div key={alert.id} initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }}
