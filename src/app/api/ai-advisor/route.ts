@@ -55,7 +55,7 @@ Return ONLY a JSON array of 4 strings (the recommendations), no markdown, no ext
 ["recommendation 1", "recommendation 2", "recommendation 3", "recommendation 4"]`;
 
  const genAI = new GoogleGenerativeAI(apiKey);
- const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+ const model = genAI.getGenerativeModel({ model: "gemini-2.5-flash" });
 
  const result = await model.generateContent(prompt);
  const text = result.response.text().trim();

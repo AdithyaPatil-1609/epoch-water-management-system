@@ -348,7 +348,8 @@ export default function Dashboard() {
 
  // Add multi-tier advanced analytics variables
  const totalConsumption = zones.reduce((sum, z) => sum + (z.current_consumption_ML ?? 0), 0);
- const totalAvailable = zones.reduce((sum, z) => sum + (z.supply_capacity_ML ?? 0), 0) || totalConsumption * 1.15;
+ const initialAvailable = zones.reduce((sum, z) => sum + (z.supply_capacity_ML ?? 0), 0);
+ const totalAvailable = Math.max(initialAvailable, totalConsumption * 1.15);
  const nrw = totalAvailable > 0 ? ((totalAvailable - totalConsumption) / totalAvailable * 100).toFixed(1) : "12.5";
  const waterLossLitres = Math.max(0, (totalAvailable - totalConsumption) * 1000000).toFixed(0);
  const revenueLoss = Math.max(0, parseFloat(waterLossLitres) * 0.04).toFixed(0);
